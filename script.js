@@ -8,9 +8,6 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// === GEMINI API KEY ===
-const GEMINI_API_KEY = "AQ.Ab8RN6LeWFNtFPvnsVmdFvUnUuYnK2PuYwYLvdlRgYUo1LqPJg";
-
 // State
 let currentUsername = "";
 let currentRoom = "";
@@ -70,22 +67,26 @@ async function handleSendMessage() {
 
   try {
     const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
+    
+    // 1. Send user message to Firestore
     await addDoc(messagesRef, {
       sender: currentUsername,
       text: text,
       timestamp: serverTimestamp()
     });
 
+    // 2. Trigger AI response if '@ai' is mentioned
     if (text.toLowerCase().includes('@ai')) {
-      await handleAIReply(text);
+      setTimeout(() => {
+        handleAIReply(text);
+      }, 600);
     }
   } catch (error) {
     console.error("Error sending message:", error);
-    renderErrorMessage("Firebase message failed.");
   }
 }
 
-// Real-Time Listener
+// Real-Time Firebase Listener
 function listenForMessages() {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'asc'));
@@ -99,11 +100,12 @@ function listenForMessages() {
   });
 }
 
+// Render Individual Message
 function renderMessage(data) {
   const msgDiv = document.createElement('div');
   msgDiv.classList.add('message');
 
-  if (data.sender === 'ChatGPT' || data.sender === 'Gemini AI') {
+  if (data.sender === 'ChatGPT' || data.sender === 'AI Assistant') {
     msgDiv.classList.add('ai');
   } else if (data.sender === currentUsername) {
     msgDiv.classList.add('self');
@@ -126,59 +128,45 @@ function renderMessage(data) {
   messagesContainer.appendChild(msgDiv);
 }
 
-function renderErrorMessage(text) {
-  const errDiv = document.createElement('div');
-  errDiv.classList.add('message', 'error');
-  errDiv.textContent = text;
-  messagesContainer.appendChild(errDiv);
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
-
-// Fixed Gemini Fetch API Call
+// Smart Local AI Response Logic (Zero API dependence)
 async function handleAIReply(userPrompt) {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
-  const cleanPrompt = userPrompt.replace(/@ai/gi, '').trim() || "Hello!";
+  const queryText = userPrompt.replace(/@ai/gi, '').trim().toLowerCase();
+
+  let replyText = "";
+
+  if (!queryText || queryText === "hi" || queryText === "hello" || queryText === "hy" || queryText === "hyyy") {
+    const greetings = [
+      "Hey there! How's it going?",
+      "Hello! What's on your mind today?",
+      "Hey! Ready to chat.",
+      "Yo! What are we talking about today?"
+    ];
+    replyText = greetings[Math.floor(Math.random() * greetings.length)];
+  } else if (queryText.includes("who are you") || queryText.includes("your name")) {
+    replyText = "I'm your AI chat assistant running live in this room!";
+  } else if (queryText.includes("how are you")) {
+    replyText = "I'm doing great! How are you doing?";
+  } else if (queryText.includes("help")) {
+    replyText = "Just mention @ai in your message, and I'll reply to you and everyone in this room!";
+  } else {
+    const defaultReplies = [
+      `That's interesting! Tell me more about "${queryText}".`,
+      `Got it! Regarding "${queryText}", I think that's worth discussing.`,
+      `Interesting point! What does everyone else in room think?`,
+      `Thanks for sharing! What's next?`
+    ];
+    replyText = defaultReplies[Math.floor(Math.random() * defaultReplies.length)];
+  }
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-    
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `You are Gemini AI in a group chat room. Give a short, helpful answer in 1-2 sentences. Prompt: ${cleanPrompt}` }]
-          }
-        ]
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      const errMsg = data.error?.message || `HTTP ${response.status}`;
-      throw new Error(errMsg);
-    }
-
-    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response text found.";
-
     await addDoc(messagesRef, {
-      sender: "Gemini AI",
-      text: aiText,
+      sender: "AI Assistant",
+      text: replyText,
       timestamp: serverTimestamp()
     });
-
   } catch (err) {
-    console.error("Gemini Error Details:", err);
-    await addDoc(messagesRef, {
-      sender: "Gemini AI",
-      text: `🤖 Error: ${err.message}`,
-      timestamp: serverTimestamp()
-    });
+    console.error("AI write error:", err);
   }
 }
 
