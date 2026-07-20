@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // === GEMINI API KEY ===
-const GEMINI_API_KEY = "AQ.Ab8RN6IU1nSJenIXujz41CZ5dgLgV9OdoOr1_LQryreQAf5vTg";
+const GEMINI_API_KEY = "AQ.Ab8RN6LeWFNtFPvnsVmdFvUnUuYnK2PuYwYLvdlRgYUo1LqPJg";
 
 // State
 let currentUsername = "";
