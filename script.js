@@ -5,11 +5,10 @@ import {
   query, 
   orderBy, 
   onSnapshot, 
-  serverTimestamp,
-  getDocs
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// === PASTE YOUR GEMINI API KEY HERE ===
+// === GEMINI API KEY ===
 const GEMINI_API_KEY = "AQ.Ab8RN6IU1nSJenIXujz41CZ5dgLgV9OdoOr1_LQryreQAf5vTg";
 
 // State
@@ -57,13 +56,12 @@ leaveBtn.addEventListener('click', () => {
   joinScreen.classList.remove('hidden');
 });
 
-// Send Message on Button Click or Enter Key
+// Send Message
 sendBtn.addEventListener('click', handleSendMessage);
 messageInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleSendMessage();
 });
 
-// Send Message Handler
 async function handleSendMessage() {
   const text = messageInput.value.trim();
   if (!text) return;
@@ -83,11 +81,11 @@ async function handleSendMessage() {
     }
   } catch (error) {
     console.error("Error sending message:", error);
-    renderErrorMessage("Failed to send message. Check Firebase connection.");
+    renderErrorMessage("Firebase message failed.");
   }
 }
 
-// Real-Time Firebase Listener
+// Real-Time Listener
 function listenForMessages() {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'asc'));
@@ -95,17 +93,12 @@ function listenForMessages() {
   unsubscribeListener = onSnapshot(q, (snapshot) => {
     messagesContainer.innerHTML = '';
     snapshot.forEach((doc) => {
-      const data = doc.data();
-      renderMessage(data);
+      renderMessage(doc.data());
     });
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  }, (error) => {
-    console.error("Firestore Error:", error);
-    renderErrorMessage("Error fetching real-time updates.");
   });
 }
 
-// Render Individual Message
 function renderMessage(data) {
   const msgDiv = document.createElement('div');
   msgDiv.classList.add('message');
@@ -141,31 +134,37 @@ function renderErrorMessage(text) {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-// Gemini AI Integration
+// Fixed Gemini Fetch API Call
 async function handleAIReply(userPrompt) {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
-  
-  try {
-    const cleanPrompt = userPrompt.replace(/@ai/gi, '').trim() || "Hello!";
+  const cleanPrompt = userPrompt.replace(/@ai/gi, '').trim() || "Hello!";
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{ text: `You are an AI participant in a group chat room. Keep your answer brief and friendly. Question: ${cleanPrompt}` }]
-        }]
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: `You are Gemini AI in a group chat room. Give a short, helpful answer in 1-2 sentences. Prompt: ${cleanPrompt}` }]
+          }
+        ]
       })
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      throw new Error(`Gemini API Error status ${response.status}`);
+      const errMsg = data.error?.message || `HTTP ${response.status}`;
+      throw new Error(errMsg);
     }
 
-    const data = await response.json();
-    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No reply generated.";
+    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response text found.";
 
     await addDoc(messagesRef, {
       sender: "Gemini AI",
@@ -174,10 +173,10 @@ async function handleAIReply(userPrompt) {
     });
 
   } catch (err) {
-    console.error("Gemini Error:", err);
+    console.error("Gemini Error Details:", err);
     await addDoc(messagesRef, {
       sender: "Gemini AI",
-      text: "⛷️ Gemini API error. Please check your key.",
+      text: `🤖 Error: ${err.message}`,
       timestamp: serverTimestamp()
     });
   }
