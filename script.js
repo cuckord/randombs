@@ -10,7 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // Your OpenRouter API Key
-const OPENROUTER_API_KEY = "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";
+const OPENROUTER_API_KEY = "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";
 
 // State
 let currentUsername = "";
