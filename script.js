@@ -9,8 +9,8 @@ import {
   getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// === PASTE YOUR NEW OPENROUTER API KEY HERE ===
-const OPENROUTER_API_KEY = "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";
+// === PASTE YOUR GEMINI API KEY HERE ===
+const GEMINI_API_KEY = "AQ.Ab8RN6IU1nSJenIXujz41CZ5dgLgV9OdoOr1_LQryreQAf5vTg";
 
 // State
 let currentUsername = "";
@@ -71,7 +71,6 @@ async function handleSendMessage() {
   messageInput.value = '';
 
   try {
-    // 1. Save user message to Firestore
     const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
     await addDoc(messagesRef, {
       sender: currentUsername,
@@ -79,9 +78,8 @@ async function handleSendMessage() {
       timestamp: serverTimestamp()
     });
 
-    // 2. Trigger AI reply if `@ai` is mentioned
     if (text.toLowerCase().includes('@ai')) {
-      await handleAIReply();
+      await handleAIReply(text);
     }
   } catch (error) {
     console.error("Error sending message:", error);
@@ -112,7 +110,7 @@ function renderMessage(data) {
   const msgDiv = document.createElement('div');
   msgDiv.classList.add('message');
 
-  if (data.sender === 'ChatGPT') {
+  if (data.sender === 'ChatGPT' || data.sender === 'Gemini AI') {
     msgDiv.classList.add('ai');
   } else if (data.sender === currentUsername) {
     msgDiv.classList.add('self');
@@ -143,60 +141,43 @@ function renderErrorMessage(text) {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-// AI Integration (OpenRouter)
-async function handleAIReply() {
+// Gemini AI Integration
+async function handleAIReply(userPrompt) {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   
   try {
-    const q = query(messagesRef, orderBy('timestamp', 'asc'));
-    const snapshot = await getDocs(q);
+    const cleanPrompt = userPrompt.replace(/@ai/gi, '').trim() || "Hello!";
 
-    const history = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.text) {
-        history.push({
-          role: data.sender === 'ChatGPT' ? 'assistant' : 'user',
-          content: `${data.sender}: ${data.text}`
-        });
-      }
-    });
-
-    const conversationContext = history.slice(-10);
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3.2-1b-instruct:free",
-        messages: [
-          { role: "system", content: "You are ChatGPT, a helpful AI participant in a group chat room. Keep replies concise." },
-          ...conversationContext
-        ]
+        contents: [{
+          parts: [{ text: `You are an AI participant in a group chat room. Keep your answer brief and friendly. Question: ${cleanPrompt}` }]
+        }]
       })
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP Status ${response.status}`);
+      throw new Error(`Gemini API Error status ${response.status}`);
     }
 
     const data = await response.json();
-    const aiText = data.choices?.[0]?.message?.content || "No reply generated.";
+    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No reply generated.";
 
     await addDoc(messagesRef, {
-      sender: "ChatGPT",
+      sender: "Gemini AI",
       text: aiText,
       timestamp: serverTimestamp()
     });
 
   } catch (err) {
-    console.error("AI Fetch Error:", err);
+    console.error("Gemini Error:", err);
     await addDoc(messagesRef, {
-      sender: "ChatGPT",
-      text: "⛷️ AI connection error. Please verify key/permissions.",
+      sender: "Gemini AI",
+      text: "⛷️ Gemini API error. Please check your key.",
       timestamp: serverTimestamp()
     });
   }
