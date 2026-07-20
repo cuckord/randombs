@@ -146,7 +146,6 @@ function renderErrorMessage(text) {
 // AI Integration (OpenRouter)
 async function handleAIReply() {
   try {
-    // Fetch last 10 messages for conversation context
     const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'asc'));
     const snapshot = await getDocs(q);
@@ -164,28 +163,30 @@ async function handleAIReply() {
 
     const conversationContext = history.slice(-10);
 
-    // Call OpenRouter API
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": window.location.origin,
+        "X-Title": "Real-Time Chat"
       },
       body: JSON.stringify({
-        model: "openrouter/free",
+        model: "google/gemma-2-9b-it:free",
         messages: [
-          { role: "system", content: "You are ChatGPT, a helpful AI participant in a group chat room." },
+          { role: "system", content: "You are ChatGPT, a helpful assistant in a group chat." },
           ...conversationContext
         ]
       })
     });
 
-    if (!response.ok) throw new Error(`API status ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`API Error ${response.status}`);
+    }
 
     const data = await response.json();
-    const aiText = data.choices[0]?.message?.content || "I couldn't process that response.";
+    const aiText = data.choices[0]?.message?.content || "No response generated.";
 
-    // Save AI reply to Firestore
     await addDoc(messagesRef, {
       sender: "ChatGPT",
       text: aiText,
@@ -193,8 +194,13 @@ async function handleAIReply() {
     });
 
   } catch (err) {
-    console.error("OpenRouter API Error:", err);
-    renderErrorMessage("🤖 ChatGPT is currently unavailable or the API limit was reached.");
+    console.error("AI Error:", err);
+    const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
+    await addDoc(messagesRef, {
+      sender: "ChatGPT",
+      text: "🤖 Unable to generate response. Please check API Key/Quota.",
+      timestamp: serverTimestamp()
+    });
   }
 }
 
@@ -203,4 +209,3 @@ function escapeHTML(str) {
     tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
   );
 }
-
