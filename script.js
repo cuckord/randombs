@@ -9,7 +9,7 @@ import {
   getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Your OpenRouter API Key
+// === PASTE YOUR NEW OPENROUTER API KEY HERE ===
 const OPENROUTER_API_KEY = "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";
 
 // State
@@ -85,7 +85,7 @@ async function handleSendMessage() {
     }
   } catch (error) {
     console.error("Error sending message:", error);
-    renderErrorMessage("Failed to send message. Please check your Firebase config.");
+    renderErrorMessage("Failed to send message. Check Firebase connection.");
   }
 }
 
@@ -145,8 +145,9 @@ function renderErrorMessage(text) {
 
 // AI Integration (OpenRouter)
 async function handleAIReply() {
+  const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
+  
   try {
-    const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'asc'));
     const snapshot = await getDocs(q);
 
@@ -167,25 +168,23 @@ async function handleAIReply() {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": window.location.origin,
-        "X-Title": "Real-Time Chat"
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "google/gemma-2-9b-it:free",
+        model: "meta-llama/llama-3.2-1b-instruct:free",
         messages: [
-          { role: "system", content: "You are ChatGPT, a helpful assistant in a group chat." },
+          { role: "system", content: "You are ChatGPT, a helpful AI participant in a group chat room. Keep replies concise." },
           ...conversationContext
         ]
       })
     });
 
     if (!response.ok) {
-      throw new Error(`API Error ${response.status}`);
+      throw new Error(`HTTP Status ${response.status}`);
     }
 
     const data = await response.json();
-    const aiText = data.choices[0]?.message?.content || "No response generated.";
+    const aiText = data.choices?.[0]?.message?.content || "No reply generated.";
 
     await addDoc(messagesRef, {
       sender: "ChatGPT",
@@ -194,11 +193,10 @@ async function handleAIReply() {
     });
 
   } catch (err) {
-    console.error("AI Error:", err);
-    const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
+    console.error("AI Fetch Error:", err);
     await addDoc(messagesRef, {
       sender: "ChatGPT",
-      text: "🤖 Unable to generate response. Please check API Key/Quota.",
+      text: "⛷️ AI connection error. Please verify key/permissions.",
       timestamp: serverTimestamp()
     });
   }
