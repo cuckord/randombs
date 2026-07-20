@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-Time AI Chat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <div id="join-screen" class="card">
+      <h2 class="app-title">Join Chat Room</h2>
+      <p class="subtitle">Enter your details to start chatting in real time.</p>
+      
+      <div class="input-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="e.g., Alex" required />
+      </div>
+
+      <div class="input-group">
+        <label for="room-code">Room Code</label>
+        <input type="text" id="room-code" placeholder="e.g., room-123" required />
+      </div>
+
+      <button id="join-btn">Join Chat</button>
+    </div>
+
+    <div id="chat-screen" class="card hidden">
+      <div class="chat-header">
+        <div>
+          <h3 id="room-title">Room: -</h3>
+          <span class="status-badge"><span class="dot"></span> Live</span>
+        </div>
+        <button id="leave-btn" class="secondary-btn">Leave</button>
+      </div>
+
+      <div id="messages-container" class="messages-container"></div>
+
+      <div class="chat-input-area">
+        <input type="text" id="message-input" placeholder="Type a message... (@ai for assistant)" />
+        <button id="send-btn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="firebase-config.js"></script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
+
