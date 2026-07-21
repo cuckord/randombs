@@ -12,7 +12,7 @@ import {
 let currentUsername = "";
 let currentRoom = "";
 let unsubscribeListener = null;
-let activeReplyData = null; // Stores currently selected reply message
+let activeReplyData = null;
 
 // DOM Elements
 const joinScreen = document.getElementById('join-screen');
@@ -68,7 +68,9 @@ messageInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleSendMessage();
 });
 
-cancelReplyBtn.addEventListener('click', clearReplyState);
+if (cancelReplyBtn) {
+  cancelReplyBtn.addEventListener('click', clearReplyState);
+}
 
 async function handleSendMessage() {
   const text = messageInput.value.trim();
@@ -85,7 +87,6 @@ async function handleSendMessage() {
       timestamp: serverTimestamp()
     };
 
-    // Attach quoted reply if active
     if (activeReplyData) {
       messagePayload.replyTo = {
         sender: activeReplyData.sender,
@@ -138,13 +139,12 @@ function renderMessage(data) {
     ? new Date(data.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : 'Just now';
 
-  // Check if message is a reply to another message
   let replyHTML = '';
   if (data.replyTo) {
     replyHTML = `
-      <div class="reply-quote">
-        <span class="reply-author">${escapeHTML(data.replyTo.sender)}</span>
-        <div>${escapeHTML(data.replyTo.text)}</div>
+      <div class="reply-quote" style="background: rgba(0,0,0,0.2); border-left: 3px solid #8b5cf6; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 0.8rem;">
+        <span style="color: #a78bfa; font-weight: bold;">${escapeHTML(data.replyTo.sender)}</span>
+        <div style="opacity: 0.8; font-size: 0.75rem;">${escapeHTML(data.replyTo.text)}</div>
       </div>
     `;
   }
@@ -158,48 +158,41 @@ function renderMessage(data) {
     <div class="content">${escapeHTML(data.text)}</div>
   `;
 
-  // Attach Swipe Gesture Detection
+  // Add Double Click / Tap to Reply
+  msgDiv.addEventListener('dblclick', () => {
+    setReplyState(data.sender, data.text);
+  });
+
+  // Attach Swipe Gesture
   attachSwipeToReply(msgDiv, data);
 
   messagesContainer.appendChild(msgDiv);
 }
 
-// Swipe Gesture Handler
+// Mobile Swipe to Reply Logic
 function attachSwipeToReply(element, data) {
   let startX = 0;
   let currentX = 0;
-  let isSwiping = false;
 
   element.addEventListener('touchstart', (e) => {
     startX = e.touches[0].clientX;
-    isSwiping = true;
-    element.style.transition = 'none';
-  });
+  }, { passive: true });
 
   element.addEventListener('touchmove', (e) => {
-    if (!isSwiping) return;
     currentX = e.touches[0].clientX;
     const diffX = currentX - startX;
-
-    // Only allow rightward swipe
-    if (diffX > 0 && diffX < 80) {
+    if (diffX > 0 && diffX < 60) {
       element.style.transform = `translateX(${diffX}px)`;
     }
-  });
+  }, { passive: true });
 
   element.addEventListener('touchend', () => {
-    if (!isSwiping) return;
-    isSwiping = false;
     const diffX = currentX - startX;
-
-    element.style.transition = 'transform 0.2s ease-out';
     element.style.transform = 'translateX(0px)';
 
-    // Trigger reply if swiped right more than 40px
-    if (diffX > 40) {
+    if (diffX > 35) {
       setReplyState(data.sender, data.text);
     }
-
     startX = 0;
     currentX = 0;
   });
@@ -207,27 +200,27 @@ function attachSwipeToReply(element, data) {
 
 function setReplyState(sender, text) {
   activeReplyData = { sender, text };
-  replyUser.textContent = sender;
-  replyText.textContent = text;
-  replyPreview.classList.remove('hidden');
+  if (replyUser) replyUser.textContent = sender;
+  if (replyText) replyText.textContent = text;
+  if (replyPreview) replyPreview.classList.remove('hidden');
   messageInput.focus();
 }
 
 function clearReplyState() {
   activeReplyData = null;
-  replyPreview.classList.add('hidden');
+  if (replyPreview) replyPreview.classList.add('hidden');
 }
 
-// AI Bot Reply
+// Local AI Response Logic
 async function handleAIReply(userPrompt) {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   const queryText = userPrompt.replace(/@ai/gi, '').trim().toLowerCase();
 
-  let replyText = "Hey! Ready to chat.";
-  if (!queryText || queryText.includes("hi") || queryText.includes("hello") || queryText.includes("hy")) {
-    replyText = "Hey there! How can I help you today?";
-  } else {
-    replyText = `That's interesting! What do you think about "${queryText}"?`;
+  let replyText = "Hey! How can I help you in this room?";
+  if (queryText.includes("hi") || queryText.includes("hello") || queryText.includes("hy")) {
+    replyText = "Hello there! 👋 What's up?";
+  } else if (queryText) {
+    replyText = `That's interesting! Tell me more about "${queryText}".`;
   }
 
   try {
