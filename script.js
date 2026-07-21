@@ -11,11 +11,11 @@ import {
   setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Persistent Keys
+// Session Keys
 const STORAGE_KEY_USER = "yappatron_user";
 const STORAGE_KEY_RECENT = "yappatron_recent_yaps";
 
-// Application State
+// State
 let currentUsername = "";
 let currentRoom = "";
 let unsubscribeListener = null;
@@ -31,6 +31,13 @@ const roomCodeInput = document.getElementById('room-code');
 const roomPasswordInput = document.getElementById('room-password');
 const rememberMeCheck = document.getElementById('remember-me');
 
+// Returning User Card Elements
+const returningUserCard = document.getElementById('returning-user-card');
+const returningAvatar = document.getElementById('returning-avatar');
+const returningUsernameDisplay = document.getElementById('returning-username-display');
+const quickContinueBtn = document.getElementById('quick-continue-btn');
+const switchAccountBtn = document.getElementById('switch-account-btn');
+
 const roomTitle = document.getElementById('room-title');
 const messagesContainer = document.getElementById('messages-container');
 const messageInput = document.getElementById('message-input');
@@ -39,7 +46,7 @@ const sendBtn = document.getElementById('send-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const callBtn = document.getElementById('call-btn');
 
-// Sidebar Controls
+// Sidebar
 const sidebar = document.getElementById('sidebar');
 const mobileMenuBtn = document.getElementById('mobile-menu-btn');
 const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
@@ -70,7 +77,7 @@ const cancelReplyBtn = document.getElementById('cancel-reply');
 window.addEventListener('DOMContentLoaded', () => {
   refreshIcons();
   renderRecentRooms();
-  checkSavedSessionAndAutoLogin();
+  checkSavedSession();
 });
 
 function refreshIcons() {
@@ -79,8 +86,8 @@ function refreshIcons() {
   }
 }
 
-// Auto Login Handler
-async function checkSavedSessionAndAutoLogin() {
+// Session Check
+function checkSavedSession() {
   const savedSession = localStorage.getItem(STORAGE_KEY_USER);
   if (savedSession) {
     try {
@@ -91,7 +98,14 @@ async function checkSavedSessionAndAutoLogin() {
         roomCodeInput.value = data.lastRoom;
         roomPasswordInput.value = data.lastRoomPassword;
 
-        await performAuthentication(data.username, data.userPassword, data.lastRoom, data.lastRoomPassword);
+        // Display Returning User View instead of showing full form immediately
+        authForm.classList.add('hidden');
+        returningUserCard.classList.remove('hidden');
+
+        returningAvatar.textContent = data.username.charAt(0).toUpperCase();
+        returningUsernameDisplay.textContent = `@${data.username}`;
+
+        refreshIcons();
       }
     } catch (e) {
       console.error("Session parse error:", e);
@@ -99,7 +113,22 @@ async function checkSavedSessionAndAutoLogin() {
   }
 }
 
-// Authentication Event
+// Quick Continue Event
+quickContinueBtn.addEventListener('click', async () => {
+  const savedSession = localStorage.getItem(STORAGE_KEY_USER);
+  if (savedSession) {
+    const data = JSON.parse(savedSession);
+    await performAuthentication(data.username, data.userPassword, data.lastRoom, data.lastRoomPassword);
+  }
+});
+
+// Switch Account Event
+switchAccountBtn.addEventListener('click', () => {
+  returningUserCard.classList.add('hidden');
+  authForm.classList.remove('hidden');
+});
+
+// Form Submission Event
 authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const username = usernameInput.value.trim().toLowerCase();
@@ -200,6 +229,8 @@ if (toggleSidebarBtn) toggleSidebarBtn.addEventListener('click', () => sidebar.c
 quickAddRoomBtn.addEventListener('click', () => {
   chatScreen.classList.add('hidden');
   joinScreen.classList.remove('hidden');
+  authForm.classList.remove('hidden');
+  returningUserCard.classList.add('hidden');
 });
 
 searchRoomsInput.addEventListener('input', (e) => {
@@ -269,7 +300,10 @@ logoutBtn.addEventListener('click', () => {
   messagesContainer.innerHTML = '';
   chatScreen.classList.add('hidden');
   joinScreen.classList.remove('hidden');
+  returningUserCard.classList.add('hidden');
+  authForm.classList.remove('hidden');
   clearReplyState();
+  refreshIcons();
 });
 
 // Messaging Handling
@@ -322,7 +356,7 @@ function listenForMessages() {
     if (snapshot.empty) {
       messagesContainer.innerHTML = `
         <div class="empty-chat-notice">
-          <i data-lucide="message-square" style="width: 32px; height: 32px; opacity: 0.5;"></i>
+          <i data-lucide="message-square" style="width: 32px; height: 32px; opacity: 0.4;"></i>
           <p>No one's yapping yet.<br>Be the first to start.</p>
         </div>
       `;
@@ -339,7 +373,7 @@ function listenForMessages() {
   });
 }
 
-// Render Individual Messages
+// Render Messages
 function renderMessage(data) {
   const rowDiv = document.createElement('div');
   rowDiv.classList.add('msg-row');
@@ -412,7 +446,7 @@ function clearReplyState() {
   replyPreview.classList.add('hidden');
 }
 
-// AI Modal Mechanics (YapBot)
+// AI Modal Mechanics
 aiModalBtn.addEventListener('click', () => aiModal.classList.remove('hidden'));
 closeAiModal.addEventListener('click', () => aiModal.classList.add('hidden'));
 
@@ -431,7 +465,7 @@ async function handleAIReply(userPrompt) {
   const queryText = userPrompt.toLowerCase();
 
   let replyText = "I'm YapBot! How can I assist the Yap Room right now?";
-  if (queryText.includes("hi") || queryText.includes("hello") || queryText.includes("hy")) {
+  if (queryText.includes("hi") || queryText.includes("hello")) {
     replyText = "Hello yappers! 👋 What are we discussing today?";
   } else if (queryText) {
     replyText = `Regarding "${userPrompt}": That's a great point for this Yap Room!`;
