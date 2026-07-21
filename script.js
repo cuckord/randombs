@@ -169,6 +169,15 @@ async function handleAIReply(userPrompt) {
     console.error("AI write error:", err);
   }
 }
+// Call Button Logic
+const callBtn = document.getElementById('call-btn');
+if (callBtn) {
+  callBtn.addEventListener('click', () => {
+    if (!currentRoom) return;
+    const callUrl = `https://meet.jit.si/RealtimeChatApp_${currentRoom}`;
+    window.open(callUrl, '_blank');
+  });
+}
 
 function escapeHTML(str) {
   return str.replace(/[&<>'"]/g, 
