@@ -5,7 +5,10 @@ import {
   query, 
   orderBy, 
   onSnapshot, 
-  serverTimestamp
+  serverTimestamp,
+  doc,
+  getDoc,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // State
@@ -18,7 +21,9 @@ let activeReplyData = null;
 const joinScreen = document.getElementById('join-screen');
 const chatScreen = document.getElementById('chat-screen');
 const usernameInput = document.getElementById('username');
+const userPasswordInput = document.getElementById('user-password');
 const roomCodeInput = document.getElementById('room-code');
+const roomPasswordInput = document.getElementById('room-password');
 const roomTitle = document.getElementById('room-title');
 const messagesContainer = document.getElementById('messages-container');
 const messageInput = document.getElementById('message-input');
@@ -33,25 +38,86 @@ const replyUser = document.getElementById('reply-user');
 const replyText = document.getElementById('reply-text');
 const cancelReplyBtn = document.getElementById('cancel-reply');
 
-// Join Room
-joinBtn.addEventListener('click', () => {
-  const username = usernameInput.value.trim();
+// Join / Register & Enter Logic
+joinBtn.addEventListener('click', async () => {
+  const username = usernameInput.value.trim().toLowerCase();
+  const userPassword = userPasswordInput.value.trim();
   const room = roomCodeInput.value.trim().toLowerCase();
+  const roomPassword = roomPasswordInput.value.trim();
 
-  if (!username || !room) {
-    alert("Please enter both a username and room code.");
+  if (!username || !userPassword || !room || !roomPassword) {
+    alert("Please fill in all fields (Username, User Password, Room Name, and Room Password).");
     return;
   }
 
-  currentUsername = username;
-  currentRoom = room;
+  joinBtn.disabled = true;
+  joinBtn.textContent = "Verifying...";
 
-  roomTitle.textContent = `Room: ${currentRoom}`;
-  joinScreen.classList.add('hidden');
-  chatScreen.classList.remove('hidden');
+  try {
+    // 1. User Claim & Auth Check
+    const userDocRef = doc(db, 'users', username);
+    const userDocSnap = await getDoc(userDocRef);
 
-  listenForMessages();
+    if (userDocSnap.exists()) {
+      // User exists, verify password
+      const userData = userDocSnap.data();
+      if (userData.password !== userPassword) {
+        alert("Incorrect password for this Username!");
+        resetJoinBtn();
+        return;
+      }
+    } else {
+      // Register new user
+      await setDoc(userDocRef, {
+        username: username,
+        password: userPassword,
+        createdAt: serverTimestamp()
+      });
+    }
+
+    // 2. Room Lock Check
+    const roomDocRef = doc(db, 'rooms_auth', room);
+    const roomDocSnap = await getDoc(roomDocRef);
+
+    if (roomDocSnap.exists()) {
+      // Room exists, verify room password
+      const roomData = roomDocSnap.data();
+      if (roomData.password !== roomPassword) {
+        alert("Incorrect Room Password!");
+        resetJoinBtn();
+        return;
+      }
+    } else {
+      // Create room with password
+      await setDoc(roomDocRef, {
+        room: room,
+        password: roomPassword,
+        createdAt: serverTimestamp()
+      });
+    }
+
+    // Auth Successful
+    currentUsername = username;
+    currentRoom = room;
+
+    roomTitle.textContent = `Room: ${currentRoom}`;
+    joinScreen.classList.add('hidden');
+    chatScreen.classList.remove('hidden');
+
+    listenForMessages();
+
+  } catch (error) {
+    console.error("Authentication Error:", error);
+    alert("Failed to join room. Please check your network connection.");
+  } finally {
+    resetJoinBtn();
+  }
 });
+
+function resetJoinBtn() {
+  joinBtn.disabled = false;
+  joinBtn.textContent = "Join / Register & Enter";
+}
 
 // Leave Room
 leaveBtn.addEventListener('click', () => {
@@ -158,7 +224,7 @@ function renderMessage(data) {
     <div class="content">${escapeHTML(data.text)}</div>
   `;
 
-  // Add Double Click / Tap to Reply
+  // Double Tap to Reply
   msgDiv.addEventListener('dblclick', () => {
     setReplyState(data.sender, data.text);
   });
