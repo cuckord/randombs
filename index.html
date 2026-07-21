@@ -3,77 +3,146 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>YAPPATRON — Realtime Messaging Platform</title>
+  <title>YAPPATRON — Private Conversations. Zero Nonsense.</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 
   <div class="app-viewport">
 
-    <div id="join-screen" class="auth-wrapper">
-      <div class="auth-card">
-        <div class="auth-brand">
-          <div class="brand-logo-icon">
-            <i data-lucide="bot" class="icon-hero"></i>
+    <div class="bg-lighting">
+      <div class="bg-orb orb-1"></div>
+      <div class="bg-orb orb-2"></div>
+    </div>
+
+    <div id="join-screen" class="auth-screen">
+      
+      <div class="auth-container">
+        
+        <div class="auth-brand-panel">
+          <div class="brand-header">
+            <div class="brand-logo-mark">
+              <i data-lucide="trees" class="brand-icon"></i>
+            </div>
+            <h1 class="brand-title">YAPPATRON</h1>
+            <p class="brand-subtitle">Private conversations. Zero nonsense.</p>
           </div>
-          <h1 class="auth-title">YAPPATRON</h1>
-          <p class="auth-subtitle">Enter your credentials to start yapping</p>
+
+          <div class="brand-features">
+            <div class="feature-item">
+              <i data-lucide="shield-check" class="feature-icon"></i>
+              <div class="feature-text">
+                <span class="feature-label">End-to-End Encryption</span>
+                <span class="feature-desc">Your yaps stay between you and your room.</span>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <i data-lucide="bot" class="feature-icon"></i>
+              <div class="feature-text">
+                <span class="feature-label">YapBot Assistance</span>
+                <span class="feature-desc">On-demand AI responses in any channel.</span>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <i data-lucide="hash" class="feature-icon"></i>
+              <div class="feature-text">
+                <span class="feature-label">Private Yap Rooms</span>
+                <span class="feature-desc">Passcode-protected custom spaces.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="brand-footer">
+            <span class="footer-note">&copy; YAPPATRON &bull; Matte &amp; Organic Messenger</span>
+          </div>
         </div>
 
-        <form id="auth-form" action="#" onsubmit="return false;">
-          <div class="form-group">
-            <label for="username">Username</label>
-            <div class="input-icon-group">
-              <i data-lucide="user" class="input-icon"></i>
-              <input type="text" id="username" placeholder="e.g. nikhil" autocomplete="username" required />
+        <div class="auth-form-panel">
+
+          <div id="returning-user-card" class="returning-card hidden">
+            <div class="returning-header">
+              <div class="returning-avatar" id="returning-avatar">N</div>
+              <h2 class="returning-title">Ready to yap again?</h2>
+              <p class="returning-username" id="returning-username-display">@user</p>
+            </div>
+
+            <div class="returning-actions">
+              <button type="button" id="quick-continue-btn" class="btn-primary full-width">
+                <i data-lucide="zap"></i>
+                <span>Start Yapping</span>
+              </button>
+
+              <button type="button" id="switch-account-btn" class="btn-secondary full-width">
+                <i data-lucide="user-minus"></i>
+                <span>Switch Account</span>
+              </button>
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="user-password">User Password</label>
-            <div class="input-icon-group">
-              <i data-lucide="lock" class="input-icon"></i>
-              <input type="password" id="user-password" placeholder="••••••••" autocomplete="current-password" required />
+          <form id="auth-form" action="#" onsubmit="return false;">
+            <div class="form-header">
+              <h2 class="form-title">Welcome Back</h2>
+              <p class="form-desc">Sign in or claim a new username to enter</p>
             </div>
-          </div>
 
-          <div class="form-group">
-            <label for="room-code">Yap Room</label>
-            <div class="input-icon-group">
-              <i data-lucide="hash" class="input-icon"></i>
-              <input type="text" id="room-code" placeholder="e.g. general" required />
+            <div class="form-group">
+              <label for="username">Username</label>
+              <div class="input-icon-group">
+                <i data-lucide="user" class="input-icon"></i>
+                <input type="text" id="username" placeholder="e.g. nikhil" autocomplete="username" required />
+              </div>
             </div>
-          </div>
 
-          <div class="form-group">
-            <label for="room-password">Yap Key</label>
-            <div class="input-icon-group">
-              <i data-lucide="key" class="input-icon"></i>
-              <input type="password" id="room-password" placeholder="Yap Room passcode" required />
+            <div class="form-group">
+              <label for="user-password">User Password</label>
+              <div class="input-icon-group">
+                <i data-lucide="lock" class="input-icon"></i>
+                <input type="password" id="user-password" placeholder="••••••••" autocomplete="current-password" required />
+              </div>
             </div>
+
+            <div class="form-group">
+              <label for="room-code">Yap Room</label>
+              <div class="input-icon-group">
+                <i data-lucide="hash" class="input-icon"></i>
+                <input type="text" id="room-code" placeholder="e.g. general" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="room-password">Yap Key</label>
+              <div class="input-icon-group">
+                <i data-lucide="key" class="input-icon"></i>
+                <input type="password" id="room-password" placeholder="Room access key" required />
+              </div>
+            </div>
+
+            <div class="form-row remember-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="remember-me" checked />
+                <span>Remember Session</span>
+              </label>
+            </div>
+
+            <button type="submit" id="join-btn" class="btn-primary full-width">
+              <i data-lucide="zap"></i>
+              <span>Start Yapping</span>
+            </button>
+          </form>
+
+          <div id="recent-rooms-wrapper" class="recent-rooms-section hidden">
+            <span class="recent-title">Recent Yaps</span>
+            <div id="recent-rooms-list" class="recent-tags"></div>
           </div>
 
-          <div class="form-row remember-row">
-            <label class="checkbox-label">
-              <input type="checkbox" id="remember-me" checked />
-              <span>Remember Session</span>
-            </label>
-          </div>
-
-          <button type="submit" id="join-btn" class="btn-primary full-width">
-            <i data-lucide="zap"></i>
-            <span>Start Yapping</span>
-          </button>
-        </form>
-
-        <div id="recent-rooms-wrapper" class="recent-rooms-section hidden">
-          <span class="recent-title">Recent Yaps</span>
-          <div id="recent-rooms-list" class="recent-tags"></div>
         </div>
+
       </div>
     </div>
 
@@ -82,7 +151,7 @@
       <aside id="sidebar" class="sidebar-panel">
         <div class="sidebar-header">
           <div class="workspace-brand">
-            <i data-lucide="bot" class="brand-icon"></i>
+            <i data-lucide="trees" class="brand-icon"></i>
             <span class="brand-name">YAPPATRON</span>
           </div>
           <button id="toggle-sidebar-btn" class="icon-btn-ghost mobile-only" type="button">
@@ -113,7 +182,7 @@
           <div class="user-avatar" id="current-user-avatar">N</div>
           <div class="user-meta">
             <span id="current-user-display" class="user-name">User</span>
-            <span class="user-status"><span class="status-dot"></span> Online</span>
+            <span class="user-status"><span class="status-dot"></span> Active</span>
           </div>
           <button id="logout-btn" class="icon-btn-ghost danger" title="Stop Yapping" type="button">
             <i data-lucide="log-out"></i>
@@ -152,15 +221,10 @@
           <div id="messages-container" class="messages-feed"></div>
         </div>
 
-        <div id="typing-indicator" class="typing-indicator-bar hidden">
-          <i data-lucide="message-square" class="typing-icon"></i>
-          <span>Someone is yapping...</span>
-        </div>
-
         <div id="reply-preview" class="reply-banner hidden">
           <div class="reply-banner-content">
             <span class="reply-label">Replying to <strong id="reply-user">User</strong></span>
-            <p id="reply-text" class="reply-snippet">Message content...</p>
+            <p id="reply-text" class="reply-snippet">Message snippet...</p>
           </div>
           <button id="cancel-reply" class="icon-btn-ghost" type="button">
             <i data-lucide="x"></i>
@@ -170,7 +234,7 @@
         <footer class="chat-input-container">
           <div class="input-bar">
             <button id="ai-modal-btn" class="icon-btn-action" title="YapBot Assistant" type="button">
-              <i data-lucide="sparkles"></i>
+              <i data-lucide="bot"></i>
             </button>
             <input type="text" id="message-input" placeholder="Type your next masterpiece..." autocomplete="off" />
             <button id="send-btn" class="btn-send" type="button">
@@ -197,7 +261,7 @@
         <textarea id="ai-prompt-input" placeholder="Ask YapBot anything..." rows="3"></textarea>
         <div class="modal-footer">
           <button id="ai-submit-btn" class="btn-primary" type="button">
-            <i data-lucide="sparkles"></i>
+            <i data-lucide="bot"></i>
             <span>Generate &amp; Post</span>
           </button>
         </div>
