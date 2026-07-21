@@ -11,6 +11,10 @@ import {
   setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// === Persistent Session Keys ===
+const STORAGE_KEY_USER = "pulse_chat_user";
+const STORAGE_KEY_RECENT = "pulse_chat_recent_rooms";
+
 // State
 let currentUsername = "";
 let currentRoom = "";
@@ -24,21 +28,56 @@ const usernameInput = document.getElementById('username');
 const userPasswordInput = document.getElementById('user-password');
 const roomCodeInput = document.getElementById('room-code');
 const roomPasswordInput = document.getElementById('room-password');
+const rememberMeCheck = document.getElementById('remember-me');
+
 const roomTitle = document.getElementById('room-title');
 const messagesContainer = document.getElementById('messages-container');
 const messageInput = document.getElementById('message-input');
 const joinBtn = document.getElementById('join-btn');
 const sendBtn = document.getElementById('send-btn');
-const leaveBtn = document.getElementById('leave-btn');
+const logoutBtn = document.getElementById('logout-btn');
 const callBtn = document.getElementById('call-btn');
 
-// Reply Preview Elements
+// AI Modal Elements
+const aiModalBtn = document.getElementById('ai-modal-btn');
+const aiModal = document.getElementById('ai-modal');
+const closeAiModal = document.getElementById('close-ai-modal');
+const aiPromptInput = document.getElementById('ai-prompt-input');
+const aiSubmitBtn = document.getElementById('ai-submit-btn');
+
+// Reply Elements
 const replyPreview = document.getElementById('reply-preview');
 const replyUser = document.getElementById('reply-user');
 const replyText = document.getElementById('reply-text');
 const cancelReplyBtn = document.getElementById('cancel-reply');
 
-// Join / Register & Enter Logic
+// Recent Rooms Container
+const recentRoomsWrapper = document.getElementById('recent-rooms-wrapper');
+const recentRoomsList = document.getElementById('recent-rooms-list');
+
+// Initialize App Session on Load
+window.addEventListener('DOMContentLoaded', () => {
+  renderRecentRooms();
+  checkSavedSession();
+});
+
+// Auto Login check
+function checkSavedSession() {
+  const savedSession = localStorage.getItem(STORAGE_KEY_USER);
+  if (savedSession) {
+    try {
+      const data = JSON.parse(savedSession);
+      usernameInput.value = data.username || "";
+      userPasswordInput.value = data.userPassword || "";
+      if (data.lastRoom) roomCodeInput.value = data.lastRoom;
+      if (data.lastRoomPassword) roomPasswordInput.value = data.lastRoomPassword;
+    } catch (e) {
+      console.error("Failed to parse saved session:", e);
+    }
+  }
+}
+
+// Join / Authenticate Room
 joinBtn.addEventListener('click', async () => {
   const username = usernameInput.value.trim().toLowerCase();
   const userPassword = userPasswordInput.value.trim();
@@ -46,12 +85,12 @@ joinBtn.addEventListener('click', async () => {
   const roomPassword = roomPasswordInput.value.trim();
 
   if (!username || !userPassword || !room || !roomPassword) {
-    alert("Please fill in all fields (Username, User Password, Room Name, and Room Password).");
+    alert("Please fill in all authentication fields.");
     return;
   }
 
   joinBtn.disabled = true;
-  joinBtn.textContent = "Verifying...";
+  joinBtn.textContent = "Authenticating...";
 
   try {
     // 1. User Claim & Auth Check
@@ -59,15 +98,12 @@ joinBtn.addEventListener('click', async () => {
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
-      // User exists, verify password
-      const userData = userDocSnap.data();
-      if (userData.password !== userPassword) {
-        alert("Incorrect password for this Username!");
+      if (userDocSnap.data().password !== userPassword) {
+        alert("Incorrect user password for this account.");
         resetJoinBtn();
         return;
       }
     } else {
-      // Register new user
       await setDoc(userDocRef, {
         username: username,
         password: userPassword,
@@ -75,20 +111,17 @@ joinBtn.addEventListener('click', async () => {
       });
     }
 
-    // 2. Room Lock Check
+    // 2. Room Protection Check
     const roomDocRef = doc(db, 'rooms_auth', room);
     const roomDocSnap = await getDoc(roomDocRef);
 
     if (roomDocSnap.exists()) {
-      // Room exists, verify room password
-      const roomData = roomDocSnap.data();
-      if (roomData.password !== roomPassword) {
-        alert("Incorrect Room Password!");
+      if (roomDocSnap.data().password !== roomPassword) {
+        alert("Incorrect Room Access Password.");
         resetJoinBtn();
         return;
       }
     } else {
-      // Create room with password
       await setDoc(roomDocRef, {
         room: room,
         password: roomPassword,
@@ -96,19 +129,31 @@ joinBtn.addEventListener('click', async () => {
       });
     }
 
-    // Auth Successful
+    // Save Session if Remember Me Checked
+    if (rememberMeCheck.checked) {
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify({
+        username,
+        userPassword,
+        lastRoom: room,
+        lastRoomPassword: roomPassword
+      }));
+    }
+
+    saveRecentRoom(room);
+
+    // Set Active State
     currentUsername = username;
     currentRoom = room;
 
-    roomTitle.textContent = `Room: ${currentRoom}`;
+    roomTitle.textContent = `# ${currentRoom}`;
     joinScreen.classList.add('hidden');
     chatScreen.classList.remove('hidden');
 
     listenForMessages();
 
   } catch (error) {
-    console.error("Authentication Error:", error);
-    alert("Failed to join room. Please check your network connection.");
+    console.error("Auth error:", error);
+    alert("Authentication failed. Please check network.");
   } finally {
     resetJoinBtn();
   }
@@ -116,12 +161,41 @@ joinBtn.addEventListener('click', async () => {
 
 function resetJoinBtn() {
   joinBtn.disabled = false;
-  joinBtn.textContent = "Join / Register & Enter";
+  joinBtn.textContent = "Continue to Chat";
 }
 
-// Leave Room
-leaveBtn.addEventListener('click', () => {
+// Recent Rooms Local Management
+function saveRecentRoom(roomName) {
+  let recent = JSON.parse(localStorage.getItem(STORAGE_KEY_RECENT) || "[]");
+  if (!recent.includes(roomName)) {
+    recent.unshift(roomName);
+    if (recent.length > 5) recent.pop();
+    localStorage.setItem(STORAGE_KEY_RECENT, JSON.stringify(recent));
+  }
+}
+
+function renderRecentRooms() {
+  const recent = JSON.parse(localStorage.getItem(STORAGE_KEY_RECENT) || "[]");
+  if (recent.length === 0) return;
+
+  recentRoomsWrapper.classList.remove('hidden');
+  recentRoomsList.innerHTML = '';
+
+  recent.forEach(room => {
+    const chip = document.createElement('span');
+    chip.classList.add('room-chip');
+    chip.textContent = `# ${room}`;
+    chip.addEventListener('click', () => {
+      roomCodeInput.value = room;
+    });
+    recentRoomsList.appendChild(chip);
+  });
+}
+
+// Logout
+logoutBtn.addEventListener('click', () => {
   if (unsubscribeListener) unsubscribeListener();
+  localStorage.removeItem(STORAGE_KEY_USER);
   messagesContainer.innerHTML = '';
   chatScreen.classList.add('hidden');
   joinScreen.classList.remove('hidden');
@@ -133,10 +207,6 @@ sendBtn.addEventListener('click', handleSendMessage);
 messageInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleSendMessage();
 });
-
-if (cancelReplyBtn) {
-  cancelReplyBtn.addEventListener('click', clearReplyState);
-}
 
 async function handleSendMessage() {
   const text = messageInput.value.trim();
@@ -161,20 +231,17 @@ async function handleSendMessage() {
     }
 
     clearReplyState();
-
     await addDoc(messagesRef, messagePayload);
 
     if (text.toLowerCase().includes('@ai')) {
-      setTimeout(() => {
-        handleAIReply(text);
-      }, 600);
+      handleAIReply(text.replace(/@ai/gi, '').trim());
     }
   } catch (error) {
     console.error("Error sending message:", error);
   }
 }
 
-// Real-Time Firebase Listener
+// Real-time Firebase Listener
 function listenForMessages() {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'asc'));
@@ -188,18 +255,25 @@ function listenForMessages() {
   });
 }
 
-// Render Individual Message
+// Render Individual Message with Avatar
 function renderMessage(data) {
-  const msgDiv = document.createElement('div');
-  msgDiv.classList.add('message');
+  const groupDiv = document.createElement('div');
+  groupDiv.classList.add('msg-group');
 
-  if (data.sender === 'ChatGPT' || data.sender === 'AI Assistant') {
-    msgDiv.classList.add('ai');
-  } else if (data.sender === currentUsername) {
-    msgDiv.classList.add('self');
-  } else {
-    msgDiv.classList.add('other');
-  }
+  const isAI = data.sender === 'AI Assistant' || data.sender === 'ChatGPT';
+  const isSelf = data.sender === currentUsername;
+
+  if (isAI) groupDiv.classList.add('ai');
+  else if (isSelf) groupDiv.classList.add('self');
+  else groupDiv.classList.add('other');
+
+  // Avatar Initial
+  const avatarDiv = document.createElement('div');
+  avatarDiv.classList.add('msg-avatar');
+  avatarDiv.textContent = isAI ? '✨' : data.sender.charAt(0).toUpperCase();
+
+  const bubbleDiv = document.createElement('div');
+  bubbleDiv.classList.add('msg-bubble');
 
   const timeStr = data.timestamp 
     ? new Date(data.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -208,85 +282,72 @@ function renderMessage(data) {
   let replyHTML = '';
   if (data.replyTo) {
     replyHTML = `
-      <div class="reply-quote" style="background: rgba(0,0,0,0.2); border-left: 3px solid #8b5cf6; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 0.8rem;">
-        <span style="color: #a78bfa; font-weight: bold;">${escapeHTML(data.replyTo.sender)}</span>
-        <div style="opacity: 0.8; font-size: 0.75rem;">${escapeHTML(data.replyTo.text)}</div>
+      <div class="quote-box">
+        <span class="quote-author">${escapeHTML(data.replyTo.sender)}</span>
+        <div>${escapeHTML(data.replyTo.text)}</div>
       </div>
     `;
   }
 
-  msgDiv.innerHTML = `
+  bubbleDiv.innerHTML = `
     ${replyHTML}
-    <div class="meta">
-      <strong>${escapeHTML(data.sender)}</strong>
-      <span>${timeStr}</span>
+    <div class="msg-header">
+      <span class="msg-sender">${escapeHTML(data.sender)}</span>
+      <span class="msg-time">${timeStr}</span>
     </div>
-    <div class="content">${escapeHTML(data.text)}</div>
+    <div class="msg-content">${escapeHTML(data.text)}</div>
   `;
 
-  // Double Tap to Reply
-  msgDiv.addEventListener('dblclick', () => {
+  // Double tap to reply
+  bubbleDiv.addEventListener('dblclick', () => {
     setReplyState(data.sender, data.text);
   });
 
-  // Attach Swipe Gesture
-  attachSwipeToReply(msgDiv, data);
-
-  messagesContainer.appendChild(msgDiv);
+  groupDiv.appendChild(avatarDiv);
+  groupDiv.appendChild(bubbleDiv);
+  messagesContainer.appendChild(groupDiv);
 }
 
-// Mobile Swipe to Reply Logic
-function attachSwipeToReply(element, data) {
-  let startX = 0;
-  let currentX = 0;
-
-  element.addEventListener('touchstart', (e) => {
-    startX = e.touches[0].clientX;
-  }, { passive: true });
-
-  element.addEventListener('touchmove', (e) => {
-    currentX = e.touches[0].clientX;
-    const diffX = currentX - startX;
-    if (diffX > 0 && diffX < 60) {
-      element.style.transform = `translateX(${diffX}px)`;
-    }
-  }, { passive: true });
-
-  element.addEventListener('touchend', () => {
-    const diffX = currentX - startX;
-    element.style.transform = 'translateX(0px)';
-
-    if (diffX > 35) {
-      setReplyState(data.sender, data.text);
-    }
-    startX = 0;
-    currentX = 0;
-  });
-}
+// Reply Helpers
+cancelReplyBtn.addEventListener('click', clearReplyState);
 
 function setReplyState(sender, text) {
   activeReplyData = { sender, text };
-  if (replyUser) replyUser.textContent = sender;
-  if (replyText) replyText.textContent = text;
-  if (replyPreview) replyPreview.classList.remove('hidden');
+  replyUser.textContent = sender;
+  replyText.textContent = text;
+  replyPreview.classList.remove('hidden');
   messageInput.focus();
 }
 
 function clearReplyState() {
   activeReplyData = null;
-  if (replyPreview) replyPreview.classList.add('hidden');
+  replyPreview.classList.add('hidden');
 }
 
-// Local AI Response Logic
+// AI Modal Handling
+aiModalBtn.addEventListener('click', () => aiModal.classList.remove('hidden'));
+closeAiModal.addEventListener('click', () => aiModal.classList.add('hidden'));
+
+aiSubmitBtn.addEventListener('click', async () => {
+  const prompt = aiPromptInput.value.trim();
+  if (!prompt) return;
+
+  aiModal.classList.add('hidden');
+  aiPromptInput.value = '';
+
+  await handleAIReply(prompt);
+});
+
+// Local AI Engine Logic
 async function handleAIReply(userPrompt) {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
-  const queryText = userPrompt.replace(/@ai/gi, '').trim().toLowerCase();
+  const queryText = userPrompt.toLowerCase();
 
-  let replyText = "Hey! How can I help you in this room?";
-  if (queryText.includes("hi") || queryText.includes("hello") || queryText.includes("hy")) {
-    replyText = "Hello there! 👋 What's up?";
+  let replyText = "I'm your assistant in this room. How can I help?";
+  if (queryText.includes("hi") || queryText.includes("hello")) {
+    replyText = "Hello! 👋 How is everyone doing today?";
   } else if (queryText) {
-    replyText = `That's interesting! Tell me more about "${queryText}".`;
+    replyText = `Regarding "${userPrompt}": That's an insightful topic worth discussing here!`;
   }
 
   try {
@@ -300,14 +361,12 @@ async function handleAIReply(userPrompt) {
   }
 }
 
-// Call Button Logic
-if (callBtn) {
-  callBtn.addEventListener('click', () => {
-    if (!currentRoom) return;
-    const callUrl = `https://meet.jit.si/RealtimeChatApp_${currentRoom}`;
-    window.open(callUrl, '_blank');
-  });
-}
+// Call Integration
+callBtn.addEventListener('click', () => {
+  if (!currentRoom) return;
+  const callUrl = `https://meet.jit.si/PulseApp_${currentRoom}`;
+  window.open(callUrl, '_blank');
+});
 
 function escapeHTML(str) {
   return str.replace(/[&<>'"]/g, 
