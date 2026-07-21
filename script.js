@@ -12,6 +12,7 @@ import {
 let currentUsername = "";
 let currentRoom = "";
 let unsubscribeListener = null;
+let activeReplyData = null; // Stores currently selected reply message
 
 // DOM Elements
 const joinScreen = document.getElementById('join-screen');
@@ -24,8 +25,15 @@ const messageInput = document.getElementById('message-input');
 const joinBtn = document.getElementById('join-btn');
 const sendBtn = document.getElementById('send-btn');
 const leaveBtn = document.getElementById('leave-btn');
+const callBtn = document.getElementById('call-btn');
 
-// Join Chat Room
+// Reply Preview Elements
+const replyPreview = document.getElementById('reply-preview');
+const replyUser = document.getElementById('reply-user');
+const replyText = document.getElementById('reply-text');
+const cancelReplyBtn = document.getElementById('cancel-reply');
+
+// Join Room
 joinBtn.addEventListener('click', () => {
   const username = usernameInput.value.trim();
   const room = roomCodeInput.value.trim().toLowerCase();
@@ -51,6 +59,7 @@ leaveBtn.addEventListener('click', () => {
   messagesContainer.innerHTML = '';
   chatScreen.classList.add('hidden');
   joinScreen.classList.remove('hidden');
+  clearReplyState();
 });
 
 // Send Message
@@ -58,6 +67,8 @@ sendBtn.addEventListener('click', handleSendMessage);
 messageInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleSendMessage();
 });
+
+cancelReplyBtn.addEventListener('click', clearReplyState);
 
 async function handleSendMessage() {
   const text = messageInput.value.trim();
@@ -68,14 +79,24 @@ async function handleSendMessage() {
   try {
     const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
     
-    // 1. Send user message to Firestore
-    await addDoc(messagesRef, {
+    const messagePayload = {
       sender: currentUsername,
       text: text,
       timestamp: serverTimestamp()
-    });
+    };
 
-    // 2. Trigger AI response if '@ai' is mentioned
+    // Attach quoted reply if active
+    if (activeReplyData) {
+      messagePayload.replyTo = {
+        sender: activeReplyData.sender,
+        text: activeReplyData.text
+      };
+    }
+
+    clearReplyState();
+
+    await addDoc(messagesRef, messagePayload);
+
     if (text.toLowerCase().includes('@ai')) {
       setTimeout(() => {
         handleAIReply(text);
@@ -117,7 +138,19 @@ function renderMessage(data) {
     ? new Date(data.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : 'Just now';
 
+  // Check if message is a reply to another message
+  let replyHTML = '';
+  if (data.replyTo) {
+    replyHTML = `
+      <div class="reply-quote">
+        <span class="reply-author">${escapeHTML(data.replyTo.sender)}</span>
+        <div>${escapeHTML(data.replyTo.text)}</div>
+      </div>
+    `;
+  }
+
   msgDiv.innerHTML = `
+    ${replyHTML}
     <div class="meta">
       <strong>${escapeHTML(data.sender)}</strong>
       <span>${timeStr}</span>
@@ -125,38 +158,76 @@ function renderMessage(data) {
     <div class="content">${escapeHTML(data.text)}</div>
   `;
 
+  // Attach Swipe Gesture Detection
+  attachSwipeToReply(msgDiv, data);
+
   messagesContainer.appendChild(msgDiv);
 }
 
-// Smart Local AI Response Logic (Zero API dependence)
+// Swipe Gesture Handler
+function attachSwipeToReply(element, data) {
+  let startX = 0;
+  let currentX = 0;
+  let isSwiping = false;
+
+  element.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+    isSwiping = true;
+    element.style.transition = 'none';
+  });
+
+  element.addEventListener('touchmove', (e) => {
+    if (!isSwiping) return;
+    currentX = e.touches[0].clientX;
+    const diffX = currentX - startX;
+
+    // Only allow rightward swipe
+    if (diffX > 0 && diffX < 80) {
+      element.style.transform = `translateX(${diffX}px)`;
+    }
+  });
+
+  element.addEventListener('touchend', () => {
+    if (!isSwiping) return;
+    isSwiping = false;
+    const diffX = currentX - startX;
+
+    element.style.transition = 'transform 0.2s ease-out';
+    element.style.transform = 'translateX(0px)';
+
+    // Trigger reply if swiped right more than 40px
+    if (diffX > 40) {
+      setReplyState(data.sender, data.text);
+    }
+
+    startX = 0;
+    currentX = 0;
+  });
+}
+
+function setReplyState(sender, text) {
+  activeReplyData = { sender, text };
+  replyUser.textContent = sender;
+  replyText.textContent = text;
+  replyPreview.classList.remove('hidden');
+  messageInput.focus();
+}
+
+function clearReplyState() {
+  activeReplyData = null;
+  replyPreview.classList.add('hidden');
+}
+
+// AI Bot Reply
 async function handleAIReply(userPrompt) {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   const queryText = userPrompt.replace(/@ai/gi, '').trim().toLowerCase();
 
-  let replyText = "";
-
-  if (!queryText || queryText === "hi" || queryText === "hello" || queryText === "hy" || queryText === "hyyy") {
-    const greetings = [
-      "Hey there! How's it going?",
-      "Hello! What's on your mind today?",
-      "Hey! Ready to chat.",
-      "Yo! What are we talking about today?"
-    ];
-    replyText = greetings[Math.floor(Math.random() * greetings.length)];
-  } else if (queryText.includes("who are you") || queryText.includes("your name")) {
-    replyText = "I'm your AI chat assistant running live in this room!";
-  } else if (queryText.includes("how are you")) {
-    replyText = "I'm doing great! How are you doing?";
-  } else if (queryText.includes("help")) {
-    replyText = "Just mention @ai in your message, and I'll reply to you and everyone in this room!";
+  let replyText = "Hey! Ready to chat.";
+  if (!queryText || queryText.includes("hi") || queryText.includes("hello") || queryText.includes("hy")) {
+    replyText = "Hey there! How can I help you today?";
   } else {
-    const defaultReplies = [
-      `That's interesting! Tell me more about "${queryText}".`,
-      `Got it! Regarding "${queryText}", I think that's worth discussing.`,
-      `Interesting point! What does everyone else in room think?`,
-      `Thanks for sharing! What's next?`
-    ];
-    replyText = defaultReplies[Math.floor(Math.random() * defaultReplies.length)];
+    replyText = `That's interesting! What do you think about "${queryText}"?`;
   }
 
   try {
@@ -169,8 +240,8 @@ async function handleAIReply(userPrompt) {
     console.error("AI write error:", err);
   }
 }
+
 // Call Button Logic
-const callBtn = document.getElementById('call-btn');
 if (callBtn) {
   callBtn.addEventListener('click', () => {
     if (!currentRoom) return;
