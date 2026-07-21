@@ -11,9 +11,9 @@ import {
   setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Session Keys
-const STORAGE_KEY_USER = "pulse_chat_user";
-const STORAGE_KEY_RECENT = "pulse_chat_recent_rooms";
+// Persistent Keys
+const STORAGE_KEY_USER = "yappatron_user";
+const STORAGE_KEY_RECENT = "yappatron_recent_yaps";
 
 // Application State
 let currentUsername = "";
@@ -39,7 +39,7 @@ const sendBtn = document.getElementById('send-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const callBtn = document.getElementById('call-btn');
 
-// Sidebar Elements
+// Sidebar Controls
 const sidebar = document.getElementById('sidebar');
 const mobileMenuBtn = document.getElementById('mobile-menu-btn');
 const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
@@ -47,6 +47,7 @@ const sidebarRoomsList = document.getElementById('sidebar-rooms-list');
 const currentUserDisplay = document.getElementById('current-user-display');
 const currentUserAvatar = document.getElementById('current-user-avatar');
 const quickAddRoomBtn = document.getElementById('quick-add-room-btn');
+const searchRoomsInput = document.getElementById('search-rooms-input');
 
 // Recent Rooms
 const recentRoomsWrapper = document.getElementById('recent-rooms-wrapper');
@@ -65,11 +66,18 @@ const replyUser = document.getElementById('reply-user');
 const replyText = document.getElementById('reply-text');
 const cancelReplyBtn = document.getElementById('cancel-reply');
 
-// Initialization
+// Initialize on Load
 window.addEventListener('DOMContentLoaded', () => {
+  refreshIcons();
   renderRecentRooms();
   checkSavedSessionAndAutoLogin();
 });
+
+function refreshIcons() {
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+}
 
 // Auto Login Handler
 async function checkSavedSessionAndAutoLogin() {
@@ -91,7 +99,7 @@ async function checkSavedSessionAndAutoLogin() {
   }
 }
 
-// Authentication Event Handler
+// Authentication Event
 authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const username = usernameInput.value.trim().toLowerCase();
@@ -106,10 +114,10 @@ authForm.addEventListener('submit', async (e) => {
 
 async function performAuthentication(username, userPassword, room, roomPassword) {
   joinBtn.disabled = true;
-  joinBtn.textContent = "Authenticating...";
+  joinBtn.textContent = "Connecting...";
 
   try {
-    // User Check
+    // User Verification
     const userDocRef = doc(db, 'users', username);
     const userDocSnap = await getDoc(userDocRef);
 
@@ -127,13 +135,13 @@ async function performAuthentication(username, userPassword, room, roomPassword)
       });
     }
 
-    // Room Check
+    // Room Verification
     const roomDocRef = doc(db, 'rooms_auth', room);
     const roomDocSnap = await getDoc(roomDocRef);
 
     if (roomDocSnap.exists()) {
       if (roomDocSnap.data().password !== roomPassword) {
-        alert("Incorrect Room Password!");
+        alert("Incorrect Yap Key!");
         resetJoinBtn();
         return;
       }
@@ -161,7 +169,7 @@ async function performAuthentication(username, userPassword, room, roomPassword)
 
     currentUserDisplay.textContent = currentUsername;
     currentUserAvatar.textContent = currentUsername.charAt(0).toUpperCase();
-    roomTitle.textContent = `# ${currentRoom}`;
+    roomTitle.textContent = currentRoom;
 
     renderSidebarRooms();
 
@@ -169,6 +177,7 @@ async function performAuthentication(username, userPassword, room, roomPassword)
     chatScreen.classList.remove('hidden');
 
     listenForMessages();
+    refreshIcons();
 
   } catch (error) {
     console.error("Auth error:", error);
@@ -180,20 +189,25 @@ async function performAuthentication(username, userPassword, room, roomPassword)
 
 function resetJoinBtn() {
   joinBtn.disabled = false;
-  joinBtn.textContent = "Continue to Workspace";
+  joinBtn.innerHTML = `<i data-lucide="zap"></i><span>Start Yapping</span>`;
+  refreshIcons();
 }
 
-// Sidebar Mobile Toggle
+// Sidebar Controls
 if (mobileMenuBtn) mobileMenuBtn.addEventListener('click', () => sidebar.classList.add('open'));
 if (toggleSidebarBtn) toggleSidebarBtn.addEventListener('click', () => sidebar.classList.remove('open'));
 
-// Sidebar Quick Add Room
 quickAddRoomBtn.addEventListener('click', () => {
   chatScreen.classList.add('hidden');
   joinScreen.classList.remove('hidden');
 });
 
-// Recent Rooms Navigation Management
+searchRoomsInput.addEventListener('input', (e) => {
+  const query = e.target.value.toLowerCase();
+  renderSidebarRooms(query);
+});
+
+// Recent Rooms Storage
 function saveRecentRoom(roomName) {
   let recent = JSON.parse(localStorage.getItem(STORAGE_KEY_RECENT) || "[]");
   if (!recent.includes(roomName)) {
@@ -221,15 +235,18 @@ function renderRecentRooms() {
   });
 }
 
-function renderSidebarRooms() {
+function renderSidebarRooms(filter = "") {
   const recent = JSON.parse(localStorage.getItem(STORAGE_KEY_RECENT) || "[]");
   sidebarRoomsList.innerHTML = '';
 
-  recent.forEach(room => {
+  const filtered = recent.filter(r => r.toLowerCase().includes(filter));
+
+  filtered.forEach(room => {
     const item = document.createElement('div');
     item.classList.add('room-nav-item');
     if (room === currentRoom) item.classList.add('active');
-    item.textContent = `# ${room}`;
+
+    item.innerHTML = `<i data-lucide="hash" class="nav-item-icon"></i><span>${escapeHTML(room)}</span>`;
     
     item.addEventListener('click', () => {
       if (room === currentRoom) return;
@@ -241,6 +258,8 @@ function renderSidebarRooms() {
 
     sidebarRoomsList.appendChild(item);
   });
+
+  refreshIcons();
 }
 
 // Logout Action
@@ -253,7 +272,7 @@ logoutBtn.addEventListener('click', () => {
   clearReplyState();
 });
 
-// Messaging Handler
+// Messaging Handling
 sendBtn.addEventListener('click', handleSendMessage);
 messageInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleSendMessage();
@@ -292,26 +311,40 @@ async function handleSendMessage() {
   }
 }
 
-// Real-time Firestore Listener
+// Realtime Firestore Listener
 function listenForMessages() {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
   unsubscribeListener = onSnapshot(q, (snapshot) => {
     messagesContainer.innerHTML = '';
+
+    if (snapshot.empty) {
+      messagesContainer.innerHTML = `
+        <div class="empty-chat-notice">
+          <i data-lucide="message-square" style="width: 32px; height: 32px; opacity: 0.5;"></i>
+          <p>No one's yapping yet.<br>Be the first to start.</p>
+        </div>
+      `;
+      refreshIcons();
+      return;
+    }
+
     snapshot.forEach((doc) => {
       renderMessage(doc.data());
     });
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    const scrollContainer = document.querySelector('.messages-viewport-wrapper');
+    if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
   });
 }
 
-// Render Messages with Proximity Alignment
+// Render Individual Messages
 function renderMessage(data) {
   const rowDiv = document.createElement('div');
   rowDiv.classList.add('msg-row');
 
-  const isAI = data.sender === 'AI Assistant' || data.sender === 'ChatGPT';
+  const isAI = data.sender === 'YapBot' || data.sender === 'AI Assistant' || data.sender === 'ChatGPT';
   const isSelf = data.sender === currentUsername;
 
   if (isAI) rowDiv.classList.add('ai');
@@ -339,7 +372,7 @@ function renderMessage(data) {
     `;
   }
 
-  let aiBadge = isAI ? '<span class="badge-ai">Neo AI</span>' : '';
+  let aiBadge = isAI ? '<span class="badge-ai"><i data-lucide="bot" style="width:12px;height:12px;"></i> YapBot</span>' : '';
 
   bodyDiv.innerHTML = `
     <div class="msg-header">
@@ -360,6 +393,7 @@ function renderMessage(data) {
   rowDiv.appendChild(avatarDiv);
   rowDiv.appendChild(bodyDiv);
   messagesContainer.appendChild(rowDiv);
+  refreshIcons();
 }
 
 // Reply Helper Actions
@@ -378,7 +412,7 @@ function clearReplyState() {
   replyPreview.classList.add('hidden');
 }
 
-// AI Modal Mechanics
+// AI Modal Mechanics (YapBot)
 aiModalBtn.addEventListener('click', () => aiModal.classList.remove('hidden'));
 closeAiModal.addEventListener('click', () => aiModal.classList.add('hidden'));
 
@@ -396,16 +430,16 @@ async function handleAIReply(userPrompt) {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   const queryText = userPrompt.toLowerCase();
 
-  let replyText = "I'm your assistant in this channel. How can I help?";
-  if (queryText.includes("hi") || queryText.includes("hello")) {
-    replyText = "Hello! 👋 How can I assist the channel right now?";
+  let replyText = "I'm YapBot! How can I assist the Yap Room right now?";
+  if (queryText.includes("hi") || queryText.includes("hello") || queryText.includes("hy")) {
+    replyText = "Hello yappers! 👋 What are we discussing today?";
   } else if (queryText) {
-    replyText = `Regarding "${userPrompt}": That's an insightful prompt worth discussing here!`;
+    replyText = `Regarding "${userPrompt}": That's a great point for this Yap Room!`;
   }
 
   try {
     await addDoc(messagesRef, {
-      sender: "AI Assistant",
+      sender: "YapBot",
       text: replyText,
       timestamp: serverTimestamp()
     });
@@ -417,7 +451,7 @@ async function handleAIReply(userPrompt) {
 // Jitsi Call Launcher
 callBtn.addEventListener('click', () => {
   if (!currentRoom) return;
-  const callUrl = `https://meet.jit.si/PulseMessenger_${currentRoom}`;
+  const callUrl = `https://meet.jit.si/YAPPATRON_${currentRoom}`;
   window.open(callUrl, '_blank');
 });
 
