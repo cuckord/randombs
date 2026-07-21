@@ -271,4 +271,77 @@ button:hover {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 10px;
 }
+/* --- SWIPE TO REPLY STYLES --- */
+
+.message {
+  position: relative;
+  touch-action: pan-y; /* Vertical scroll handle karne ke liye */
+  transition: transform 0.1s ease-out;
+}
+
+/* Quoted reply message box inside chat bubble */
+.reply-quote {
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 3px solid var(--accent-purple);
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.reply-quote .reply-author {
+  font-weight: 600;
+  color: var(--accent-mint);
+  display: block;
+}
+
+/* Reply Preview Panel above Input */
+.reply-preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border-left: 4px solid var(--accent-purple);
+  padding: 8px 12px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+
+.reply-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.reply-user {
+  font-weight: 700;
+  color: #a78bfa;
+}
+
+.reply-text {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
+}
+
+.cancel-reply-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  box-shadow: none;
+}
+
+.cancel-reply-btn:hover {
+  color: #ef4444;
+  background: transparent;
+  transform: none;
+}
+
 
