@@ -3,47 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Real-Time Chat</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Cyber Chat</title>
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
   <div class="app-container">
     <div id="join-screen" class="card">
-      <h2 class="app-title">Chat Room</h2>
-      <p class="subtitle">Enter user & room credentials to continue</p>
+      <h2 class="app-title">NEO CHAT</h2>
+      <p class="subtitle">Secure Cyberpunk Chatroom</p>
       
       <div class="input-group">
         <label for="username">Username</label>
-        <input type="text" id="username" placeholder="Enter username" required />
+        <input type="text" id="username" placeholder="Pick username" required />
       </div>
 
       <div class="input-group">
         <label for="user-password">User Password</label>
-        <input type="password" id="user-password" placeholder="Password to claim username" required />
+        <input type="password" id="user-password" placeholder="Passcode to lock username" required />
       </div>
 
       <div class="input-group">
-        <label for="room-code">Room Name</label>
-        <input type="text" id="room-code" placeholder="e.g. main-room" required />
+        <label for="room-code">Room Code</label>
+        <input type="text" id="room-code" placeholder="e.g. room-99" required />
       </div>
 
       <div class="input-group">
-        <label for="room-password">Room Password</label>
-        <input type="password" id="room-password" placeholder="Room password" required />
+        <label for="room-password">Room Key</label>
+        <input type="password" id="room-password" placeholder="Room access key" required />
       </div>
 
-      <button id="join-btn">Enter Room</button>
+      <button id="join-btn">AUTHENTICATE & ENTER</button>
     </div>
 
     <div id="chat-screen" class="card hidden">
       <div class="chat-header">
         <div>
           <h3 id="room-title">Room: -</h3>
-          <span class="status-badge"><span class="dot"></span> Online</span>
+          <span class="status-badge"><span class="dot"></span> ENCRYPTED</span>
         </div>
-        <div style="display: flex; gap: 6px;">
-          <button id="call-btn" class="secondary-btn">📞 Call</button>
-          <button id="leave-btn" class="secondary-btn">Leave</button>
+        <div style="display: flex; gap: 8px;">
+          <button id="call-btn" class="secondary-btn">🗿CALL</button>
+          <button id="leave-btn" class="secondary-btn">LEAVE💔</button>
         </div>
       </div>
 
@@ -58,13 +58,13 @@
       </div>
 
       <div class="chat-input-area">
-        <input type="text" id="message-input" placeholder="Message... (@ai for bot)" />
-        <button id="send-btn">Send</button>
+        <input type="text" id="message-input" placeholder="Transmit message... (@ai for bot)" />
+        <button id="send-btn">BHEJIYE NA</button>
       </div>
     </div>
   </div>
 
   <script type="module" src="firebase-config.js"></script>
-  <script type="module" src="script.js"></script>
+  <script type="module" src="script.js?v=3"></script>
 </body>
 </html>
