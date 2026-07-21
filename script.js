@@ -11,7 +11,7 @@ import {
   setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// === Persistent Session Keys ===
+// Session Keys
 const STORAGE_KEY_USER = "pulse_chat_user";
 const STORAGE_KEY_RECENT = "pulse_chat_recent_rooms";
 
@@ -22,6 +22,7 @@ let unsubscribeListener = null;
 let activeReplyData = null;
 
 // DOM Elements
+const authForm = document.getElementById('auth-form');
 const joinScreen = document.getElementById('join-screen');
 const chatScreen = document.getElementById('chat-screen');
 const usernameInput = document.getElementById('username');
@@ -38,68 +39,78 @@ const sendBtn = document.getElementById('send-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const callBtn = document.getElementById('call-btn');
 
-// AI Modal Elements
+// AI Modal
 const aiModalBtn = document.getElementById('ai-modal-btn');
 const aiModal = document.getElementById('ai-modal');
 const closeAiModal = document.getElementById('close-ai-modal');
 const aiPromptInput = document.getElementById('ai-prompt-input');
 const aiSubmitBtn = document.getElementById('ai-submit-btn');
 
-// Reply Elements
+// Reply Banner
 const replyPreview = document.getElementById('reply-preview');
 const replyUser = document.getElementById('reply-user');
 const replyText = document.getElementById('reply-text');
 const cancelReplyBtn = document.getElementById('cancel-reply');
 
-// Recent Rooms Container
+// Recent Rooms
 const recentRoomsWrapper = document.getElementById('recent-rooms-wrapper');
 const recentRoomsList = document.getElementById('recent-rooms-list');
 
-// Initialize App Session on Load
+// Initialize on Load
 window.addEventListener('DOMContentLoaded', () => {
   renderRecentRooms();
-  checkSavedSession();
+  checkSavedSessionAndAutoLogin();
 });
 
-// Auto Login check
-function checkSavedSession() {
+// Auto Login Handler
+async function checkSavedSessionAndAutoLogin() {
   const savedSession = localStorage.getItem(STORAGE_KEY_USER);
   if (savedSession) {
     try {
       const data = JSON.parse(savedSession);
-      usernameInput.value = data.username || "";
-      userPasswordInput.value = data.userPassword || "";
-      if (data.lastRoom) roomCodeInput.value = data.lastRoom;
-      if (data.lastRoomPassword) roomPasswordInput.value = data.lastRoomPassword;
+      if (data.username && data.userPassword && data.lastRoom && data.lastRoomPassword) {
+        usernameInput.value = data.username;
+        userPasswordInput.value = data.userPassword;
+        roomCodeInput.value = data.lastRoom;
+        roomPasswordInput.value = data.lastRoomPassword;
+
+        // Auto Enter Room
+        await performAuthentication(data.username, data.userPassword, data.lastRoom, data.lastRoomPassword);
+      }
     } catch (e) {
-      console.error("Failed to parse saved session:", e);
+      console.error("Session parse error:", e);
     }
   }
 }
 
-// Join / Authenticate Room
-joinBtn.addEventListener('click', async () => {
+// Form Submission Event (Handles Enter Key & Button Click)
+authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
   const username = usernameInput.value.trim().toLowerCase();
   const userPassword = userPasswordInput.value.trim();
   const room = roomCodeInput.value.trim().toLowerCase();
   const roomPassword = roomPasswordInput.value.trim();
 
   if (!username || !userPassword || !room || !roomPassword) {
-    alert("Please fill in all authentication fields.");
+    alert("Please fill in all credentials.");
     return;
   }
 
+  await performAuthentication(username, userPassword, room, roomPassword);
+});
+
+async function performAuthentication(username, userPassword, room, roomPassword) {
   joinBtn.disabled = true;
   joinBtn.textContent = "Authenticating...";
 
   try {
-    // 1. User Claim & Auth Check
+    // 1. User Check
     const userDocRef = doc(db, 'users', username);
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
       if (userDocSnap.data().password !== userPassword) {
-        alert("Incorrect user password for this account.");
+        alert("Incorrect user password!");
         resetJoinBtn();
         return;
       }
@@ -117,7 +128,7 @@ joinBtn.addEventListener('click', async () => {
 
     if (roomDocSnap.exists()) {
       if (roomDocSnap.data().password !== roomPassword) {
-        alert("Incorrect Room Access Password.");
+        alert("Incorrect Room Password!");
         resetJoinBtn();
         return;
       }
@@ -129,7 +140,7 @@ joinBtn.addEventListener('click', async () => {
       });
     }
 
-    // Save Session if Remember Me Checked
+    // Persistent Storage
     if (rememberMeCheck.checked) {
       localStorage.setItem(STORAGE_KEY_USER, JSON.stringify({
         username,
@@ -141,7 +152,6 @@ joinBtn.addEventListener('click', async () => {
 
     saveRecentRoom(room);
 
-    // Set Active State
     currentUsername = username;
     currentRoom = room;
 
@@ -153,18 +163,18 @@ joinBtn.addEventListener('click', async () => {
 
   } catch (error) {
     console.error("Auth error:", error);
-    alert("Authentication failed. Please check network.");
+    alert("Failed to connect. Check Firebase connection.");
   } finally {
     resetJoinBtn();
   }
-});
+}
 
 function resetJoinBtn() {
   joinBtn.disabled = false;
   joinBtn.textContent = "Continue to Chat";
 }
 
-// Recent Rooms Local Management
+// Recent Rooms Local Storage
 function saveRecentRoom(roomName) {
   let recent = JSON.parse(localStorage.getItem(STORAGE_KEY_RECENT) || "[]");
   if (!recent.includes(roomName)) {
@@ -255,7 +265,7 @@ function listenForMessages() {
   });
 }
 
-// Render Individual Message with Avatar
+// Render Messages with Swipe & Double Tap
 function renderMessage(data) {
   const groupDiv = document.createElement('div');
   groupDiv.classList.add('msg-group');
@@ -267,7 +277,6 @@ function renderMessage(data) {
   else if (isSelf) groupDiv.classList.add('self');
   else groupDiv.classList.add('other');
 
-  // Avatar Initial
   const avatarDiv = document.createElement('div');
   avatarDiv.classList.add('msg-avatar');
   avatarDiv.textContent = isAI ? '✨' : data.sender.charAt(0).toUpperCase();
@@ -298,7 +307,7 @@ function renderMessage(data) {
     <div class="msg-content">${escapeHTML(data.text)}</div>
   `;
 
-  // Double tap to reply
+  // Double Click / Tap Reply
   bubbleDiv.addEventListener('dblclick', () => {
     setReplyState(data.sender, data.text);
   });
@@ -338,16 +347,16 @@ aiSubmitBtn.addEventListener('click', async () => {
   await handleAIReply(prompt);
 });
 
-// Local AI Engine Logic
+// AI Bot Engine
 async function handleAIReply(userPrompt) {
   const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   const queryText = userPrompt.toLowerCase();
 
   let replyText = "I'm your assistant in this room. How can I help?";
-  if (queryText.includes("hi") || queryText.includes("hello")) {
-    replyText = "Hello! 👋 How is everyone doing today?";
+  if (queryText.includes("hi") || queryText.includes("hello") || queryText.includes("hy")) {
+    replyText = "Hello there! 👋 How is everyone doing today?";
   } else if (queryText) {
-    replyText = `Regarding "${userPrompt}": That's an insightful topic worth discussing here!`;
+    replyText = `Regarding "${userPrompt}": That's an interesting point worth discussing in this channel!`;
   }
 
   try {
