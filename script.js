@@ -31,9 +31,10 @@ const roomCodeInput = document.getElementById('room-code');
 const roomPasswordInput = document.getElementById('room-password');
 const rememberMeCheck = document.getElementById('remember-me');
 
-// Returning User Card Elements
+// Returning Session Elements
 const returningUserCard = document.getElementById('returning-user-card');
 const returningAvatar = document.getElementById('returning-avatar');
+const returningGreeting = document.getElementById('returning-greeting');
 const returningUsernameDisplay = document.getElementById('returning-username-display');
 const quickContinueBtn = document.getElementById('quick-continue-btn');
 const switchAccountBtn = document.getElementById('switch-account-btn');
@@ -86,6 +87,15 @@ function refreshIcons() {
   }
 }
 
+function getOrganicGreeting(username) {
+  const hour = new Date().getHours();
+  let timeStr = "Good evening";
+  if (hour < 12) timeStr = "Good morning";
+  else if (hour < 18) timeStr = "Good afternoon";
+
+  return `${timeStr}, ${username.charAt(0).toUpperCase() + username.slice(1)}`;
+}
+
 // Session Check
 function checkSavedSession() {
   const savedSession = localStorage.getItem(STORAGE_KEY_USER);
@@ -98,12 +108,13 @@ function checkSavedSession() {
         roomCodeInput.value = data.lastRoom;
         roomPasswordInput.value = data.lastRoomPassword;
 
-        // Display Returning User View instead of showing full form immediately
+        // Display Returning View
         authForm.classList.add('hidden');
         returningUserCard.classList.remove('hidden');
 
         returningAvatar.textContent = data.username.charAt(0).toUpperCase();
-        returningUsernameDisplay.textContent = `@${data.username}`;
+        returningGreeting.textContent = getOrganicGreeting(data.username);
+        returningUsernameDisplay.textContent = `Continue as @${data.username}`;
 
         refreshIcons();
       }
@@ -356,8 +367,8 @@ function listenForMessages() {
     if (snapshot.empty) {
       messagesContainer.innerHTML = `
         <div class="empty-chat-notice">
-          <i data-lucide="message-square" style="width: 32px; height: 32px; opacity: 0.4;"></i>
-          <p>No one's yapping yet.<br>Be the first to start.</p>
+          <i data-lucide="message-square" style="width: 28px; height: 28px; opacity: 0.4;"></i>
+          <p>Too quiet.<br><span style="font-size:0.78rem; opacity:0.7;">The first yap is always awkward.</span></p>
         </div>
       `;
       refreshIcons();
@@ -406,7 +417,7 @@ function renderMessage(data) {
     `;
   }
 
-  let aiBadge = isAI ? '<span class="badge-ai"><i data-lucide="bot" style="width:12px;height:12px;"></i> YapBot</span>' : '';
+  let aiBadge = isAI ? '<span class="badge-ai"><i data-lucide="bot" style="width:11px;height:11px;"></i> YapBot</span>' : '';
 
   bodyDiv.innerHTML = `
     <div class="msg-header">
@@ -430,7 +441,7 @@ function renderMessage(data) {
   refreshIcons();
 }
 
-// Reply Helper Actions
+// Reply Actions
 cancelReplyBtn.addEventListener('click', clearReplyState);
 
 function setReplyState(sender, text) {
@@ -446,7 +457,7 @@ function clearReplyState() {
   replyPreview.classList.add('hidden');
 }
 
-// AI Modal Mechanics
+// AI Modal
 aiModalBtn.addEventListener('click', () => aiModal.classList.remove('hidden'));
 closeAiModal.addEventListener('click', () => aiModal.classList.add('hidden'));
 
@@ -482,7 +493,7 @@ async function handleAIReply(userPrompt) {
   }
 }
 
-// Jitsi Call Launcher
+// Call Action
 callBtn.addEventListener('click', () => {
   if (!currentRoom) return;
   const callUrl = `https://meet.jit.si/YAPPATRON_${currentRoom}`;
@@ -491,6 +502,6 @@ callBtn.addEventListener('click', () => {
 
 function escapeHTML(str) {
   return str.replace(/[&<>'"]/g, 
-    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+    tag => ({ '&': '&amp;', '<': '&lt;'> ': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
   );
 }
