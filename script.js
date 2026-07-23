@@ -509,7 +509,7 @@ async function handleAIReply(userPrompt) {
 
   try {
     // 2. Call Supabase Edge Function (API key stays hidden on backend)
-    const { data, error } = await supabase.functions.invoke('generate-ai-response', {
+    const { data, error } = await supabase.functions.invoke('ai-response', {
       body: { prompt: userPrompt }
     });
 
