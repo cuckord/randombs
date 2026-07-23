@@ -490,7 +490,7 @@ aiSubmitBtn.addEventListener('click', async () => {
   await handleAIReply(prompt);
 });
 
-// Secure Edge Function Handler for YapBot
+// Secure Direct Fetch Call to Edge Function
 async function handleAIReply(userPrompt) {
   if (!currentRoom || !userPrompt) return;
 
@@ -508,23 +508,19 @@ async function handleAIReply(userPrompt) {
   if (tempErr) return;
 
   try {
-    // 2. Invoke 'ai-response' Edge Function
-    const { data, error } = await supabase.functions.invoke('ai-response', {
-      body: { prompt: userPrompt }
+    // 2. Direct fetch call to your Supabase Edge Function (NO API KEY EXPOSED)
+    const functionUrl = "https://fclkjwqdcihjvvwhgvlm.supabase.co/functions/v1/ai-response";
+
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: userPrompt })
     });
 
-    if (error) {
-      console.error("Invoke error details:", error);
-      await supabase
-        .from('messages')
-        .update({ text: `Invoke Error: ${error.message || JSON.stringify(error)}` })
-        .eq('id', tempMsg.id);
-      return;
-    }
+    const data = await response.json();
+    const aiText = data?.response || "Response format issue.";
 
-    const aiText = data?.response || "No response field returned.";
-
-    // 3. Update thinking message with actual response
+    // 3. Update thinking message with AI response
     await supabase
       .from('messages')
       .update({ text: aiText })
@@ -534,7 +530,7 @@ async function handleAIReply(userPrompt) {
     console.error("AI Error:", err);
     await supabase
       .from('messages')
-      .update({ text: `JS Catch Error: ${err.message}` })
+      .update({ text: `Direct Fetch Error: ${err.message}` })
       .eq('id', tempMsg.id);
   }
 }
