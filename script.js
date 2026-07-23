@@ -377,7 +377,7 @@ async function listenForMessages() {
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'messages', filter: `room=eq.${currentRoom}` },
       (payload) => {
-        // Update live message text when AI finishes thinking
+        // Live update message text when AI finishes thinking
         const existingMsgText = document.querySelector(`[data-msg-id="${payload.new.id}"] .msg-text`);
         if (existingMsgText) {
           existingMsgText.textContent = payload.new.text;
@@ -508,12 +508,21 @@ async function handleAIReply(userPrompt) {
   if (tempErr) return;
 
   try {
-    // 2. Call Supabase Edge Function (API key stays hidden on backend)
+    // 2. Invoke 'ai-response' Edge Function
     const { data, error } = await supabase.functions.invoke('ai-response', {
       body: { prompt: userPrompt }
     });
 
-    const aiText = data?.response || "Sorry, I couldn't process that yap.";
+    if (error) {
+      console.error("Invoke error details:", error);
+      await supabase
+        .from('messages')
+        .update({ text: `Invoke Error: ${error.message || JSON.stringify(error)}` })
+        .eq('id', tempMsg.id);
+      return;
+    }
+
+    const aiText = data?.response || "No response field returned.";
 
     // 3. Update thinking message with actual response
     await supabase
@@ -525,7 +534,7 @@ async function handleAIReply(userPrompt) {
     console.error("AI Error:", err);
     await supabase
       .from('messages')
-      .update({ text: "Oops! YapBot ran into an issue." })
+      .update({ text: `JS Catch Error: ${err.message}` })
       .eq('id', tempMsg.id);
   }
 }
