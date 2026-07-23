@@ -1,15 +1,4 @@
-import { db } from './firebase-config.js';
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  orderBy, 
-  onSnapshot, 
-  serverTimestamp,
-  doc,
-  getDoc,
-  setDoc
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { supabase } from './supabase-config.js';
 
 // Session Keys
 const STORAGE_KEY_USER = "yappatron_user";
@@ -18,7 +7,7 @@ const STORAGE_KEY_RECENT = "yappatron_recent_yaps";
 // State
 let currentUsername = "";
 let currentRoom = "";
-let unsubscribeListener = null;
+let realtimeChannel = null;
 let activeReplyData = null;
 
 // DOM Elements
@@ -98,7 +87,6 @@ function checkSavedSession() {
         roomCodeInput.value = data.lastRoom;
         roomPasswordInput.value = data.lastRoomPassword;
 
-        // Display Returning User View instead of showing full form immediately
         authForm.classList.add('hidden');
         returningUserCard.classList.remove('hidden');
 
@@ -146,40 +134,48 @@ async function performAuthentication(username, userPassword, room, roomPassword)
   joinBtn.textContent = "Connecting...";
 
   try {
-    // User Verification
-    const userDocRef = doc(db, 'users', username);
-    const userDocSnap = await getDoc(userDocRef);
+    // 1. User Verification
+    const { data: userData, error: userErr } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .maybeSingle();
 
-    if (userDocSnap.exists()) {
-      if (userDocSnap.data().password !== userPassword) {
+    if (userErr) throw userErr;
+
+    if (userData) {
+      if (userData.password !== userPassword) {
         alert("Incorrect user password!");
         resetJoinBtn();
         return;
       }
     } else {
-      await setDoc(userDocRef, {
-        username: username,
-        password: userPassword,
-        createdAt: serverTimestamp()
-      });
+      const { error: createUserErr } = await supabase
+        .from('users')
+        .insert({ username: username, password: userPassword });
+      if (createUserErr) throw createUserErr;
     }
 
-    // Room Verification
-    const roomDocRef = doc(db, 'rooms_auth', room);
-    const roomDocSnap = await getDoc(roomDocRef);
+    // 2. Room Verification
+    const { data: roomData, error: roomErr } = await supabase
+      .from('rooms_auth')
+      .select('*')
+      .eq('room', room)
+      .maybeSingle();
 
-    if (roomDocSnap.exists()) {
-      if (roomDocSnap.data().password !== roomPassword) {
+    if (roomErr) throw roomErr;
+
+    if (roomData) {
+      if (roomData.password !== roomPassword) {
         alert("Incorrect Yap Key!");
         resetJoinBtn();
         return;
       }
     } else {
-      await setDoc(roomDocRef, {
-        room: room,
-        password: roomPassword,
-        createdAt: serverTimestamp()
-      });
+      const { error: createRoomErr } = await supabase
+        .from('rooms_auth')
+        .insert({ room: room, password: roomPassword });
+      if (createRoomErr) throw createRoomErr;
     }
 
     if (rememberMeCheck.checked) {
@@ -210,7 +206,7 @@ async function performAuthentication(username, userPassword, room, roomPassword)
 
   } catch (error) {
     console.error("Auth error:", error);
-    alert("Connection failed.");
+    alert("Connection failed: " + (error.message || "Unknown error"));
   } finally {
     resetJoinBtn();
   }
@@ -295,7 +291,7 @@ function renderSidebarRooms(filter = "") {
 
 // Logout Action
 logoutBtn.addEventListener('click', () => {
-  if (unsubscribeListener) unsubscribeListener();
+  if (realtimeChannel) supabase.removeChannel(realtimeChannel);
   localStorage.removeItem(STORAGE_KEY_USER);
   messagesContainer.innerHTML = '';
   chatScreen.classList.add('hidden');
@@ -319,23 +315,17 @@ async function handleSendMessage() {
   messageInput.value = '';
 
   try {
-    const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
-    
     const messagePayload = {
+      room: currentRoom,
       sender: currentUsername,
       text: text,
-      timestamp: serverTimestamp()
+      reply_to: activeReplyData ? { sender: activeReplyData.sender, text: activeReplyData.text } : null
     };
 
-    if (activeReplyData) {
-      messagePayload.replyTo = {
-        sender: activeReplyData.sender,
-        text: activeReplyData.text
-      };
-    }
-
     clearReplyState();
-    await addDoc(messagesRef, messagePayload);
+
+    const { error } = await supabase.from('messages').insert(messagePayload);
+    if (error) console.error("Error sending message:", error);
 
     if (text.toLowerCase().includes('@ai')) {
       handleAIReply(text.replace(/@ai/gi, '').trim());
@@ -345,32 +335,60 @@ async function handleSendMessage() {
   }
 }
 
-// Realtime Firestore Listener
-function listenForMessages() {
-  const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
-  const q = query(messagesRef, orderBy('timestamp', 'asc'));
+// Realtime Supabase Listener & Initial Load
+async function listenForMessages() {
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel);
+  }
 
-  unsubscribeListener = onSnapshot(q, (snapshot) => {
-    messagesContainer.innerHTML = '';
+  // 1. Fetch initial message history
+  const { data: initialMessages, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('room', currentRoom)
+    .order('created_at', { ascending: true });
 
-    if (snapshot.empty) {
-      messagesContainer.innerHTML = `
-        <div class="empty-chat-notice">
-          <i data-lucide="message-square" style="width: 32px; height: 32px; opacity: 0.4;"></i>
-          <p>No one's yapping yet.<br>Be the first to start.</p>
-        </div>
-      `;
-      refreshIcons();
-      return;
-    }
+  messagesContainer.innerHTML = '';
 
-    snapshot.forEach((doc) => {
-      renderMessage(doc.data());
-    });
-    
-    const scrollContainer = document.querySelector('.messages-viewport-wrapper');
-    if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
-  });
+  if (error) {
+    console.error("Error loading history:", error);
+  } else if (!initialMessages || initialMessages.length === 0) {
+    renderEmptyNotice();
+  } else {
+    initialMessages.forEach(msg => renderMessage(msg));
+    scrollToBottom();
+  }
+
+  // 2. Listen to incoming messages in Realtime
+  realtimeChannel = supabase
+    .channel(`room:${currentRoom}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages', filter: `room=eq.${currentRoom}` },
+      (payload) => {
+        const emptyNotice = messagesContainer.querySelector('.empty-chat-notice');
+        if (emptyNotice) emptyNotice.remove();
+
+        renderMessage(payload.new);
+        scrollToBottom();
+      }
+    )
+    .subscribe();
+}
+
+function renderEmptyNotice() {
+  messagesContainer.innerHTML = `
+    <div class="empty-chat-notice">
+      <i data-lucide="message-square" style="width: 32px; height: 32px; opacity: 0.4;"></i>
+      <p>No one's yapping yet.<br>Be the first to start.</p>
+    </div>
+  `;
+  refreshIcons();
+}
+
+function scrollToBottom() {
+  const scrollContainer = document.querySelector('.messages-viewport-wrapper');
+  if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
 }
 
 // Render Messages
@@ -392,16 +410,16 @@ function renderMessage(data) {
   const bodyDiv = document.createElement('div');
   bodyDiv.classList.add('msg-body');
 
-  const timeStr = data.timestamp 
-    ? new Date(data.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const timeStr = data.created_at 
+    ? new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : 'Just now';
 
   let replyHTML = '';
-  if (data.replyTo) {
+  if (data.reply_to) {
     replyHTML = `
       <div class="quote-preview">
-        <span class="quote-sender">${escapeHTML(data.replyTo.sender)}</span>
-        <div>${escapeHTML(data.replyTo.text)}</div>
+        <span class="quote-sender">${escapeHTML(data.reply_to.sender)}</span>
+        <div>${escapeHTML(data.reply_to.text)}</div>
       </div>
     `;
   }
@@ -461,7 +479,6 @@ aiSubmitBtn.addEventListener('click', async () => {
 });
 
 async function handleAIReply(userPrompt) {
-  const messagesRef = collection(db, 'rooms', currentRoom, 'messages');
   const queryText = userPrompt.toLowerCase();
 
   let replyText = "I'm YapBot! How can I assist the Yap Room right now?";
@@ -472,10 +489,10 @@ async function handleAIReply(userPrompt) {
   }
 
   try {
-    await addDoc(messagesRef, {
+    await supabase.from('messages').insert({
+      room: currentRoom,
       sender: "YapBot",
-      text: replyText,
-      timestamp: serverTimestamp()
+      text: replyText
     });
   } catch (err) {
     console.error("AI write error:", err);
