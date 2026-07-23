@@ -359,7 +359,7 @@ async function listenForMessages() {
     scrollToBottom();
   }
 
-  // 2. Listen to incoming messages in Realtime
+  // 2. Listen to incoming messages and updates in Realtime
   realtimeChannel = supabase
     .channel(`room:${currentRoom}`)
     .on(
@@ -371,6 +371,17 @@ async function listenForMessages() {
 
         renderMessage(payload.new);
         scrollToBottom();
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'messages', filter: `room=eq.${currentRoom}` },
+      (payload) => {
+        // Update live message text when AI finishes thinking
+        const existingMsgText = document.querySelector(`[data-msg-id="${payload.new.id}"] .msg-text`);
+        if (existingMsgText) {
+          existingMsgText.textContent = payload.new.text;
+        }
       }
     )
     .subscribe();
@@ -395,6 +406,7 @@ function scrollToBottom() {
 function renderMessage(data) {
   const rowDiv = document.createElement('div');
   rowDiv.classList.add('msg-row');
+  if (data.id) rowDiv.setAttribute('data-msg-id', data.id);
 
   const isAI = data.sender === 'YapBot' || data.sender === 'AI Assistant' || data.sender === 'ChatGPT';
   const isSelf = data.sender === currentUsername;
@@ -478,24 +490,43 @@ aiSubmitBtn.addEventListener('click', async () => {
   await handleAIReply(prompt);
 });
 
+// Secure Edge Function Handler for YapBot
 async function handleAIReply(userPrompt) {
-  const queryText = userPrompt.toLowerCase();
+  if (!currentRoom || !userPrompt) return;
 
-  let replyText = "I'm YapBot! How can I assist the Yap Room right now?";
-  if (queryText.includes("hi") || queryText.includes("hello")) {
-    replyText = "Hello yappers! 👋 What are we discussing today?";
-  } else if (queryText) {
-    replyText = `Regarding "${userPrompt}": That's a great point for this Yap Room!`;
-  }
+  // 1. Post temporary "thinking" message
+  const { data: tempMsg, error: tempErr } = await supabase
+    .from('messages')
+    .insert({
+      room: currentRoom,
+      sender: 'YapBot',
+      text: '🤖 YapBot is thinking...'
+    })
+    .select()
+    .single();
+
+  if (tempErr) return;
 
   try {
-    await supabase.from('messages').insert({
-      room: currentRoom,
-      sender: "YapBot",
-      text: replyText
+    // 2. Call Supabase Edge Function (API key stays hidden on backend)
+    const { data, error } = await supabase.functions.invoke('generate-ai-response', {
+      body: { prompt: userPrompt }
     });
+
+    const aiText = data?.response || "Sorry, I couldn't process that yap.";
+
+    // 3. Update thinking message with actual response
+    await supabase
+      .from('messages')
+      .update({ text: aiText })
+      .eq('id', tempMsg.id);
+
   } catch (err) {
-    console.error("AI write error:", err);
+    console.error("AI Error:", err);
+    await supabase
+      .from('messages')
+      .update({ text: "Oops! YapBot ran into an issue." })
+      .eq('id', tempMsg.id);
   }
 }
 
