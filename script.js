@@ -494,7 +494,7 @@ aiSubmitBtn.addEventListener('click', async () => {
 async function handleAIReply(userPrompt) {
   if (!currentRoom || !userPrompt) return;
 
-  // 1. Post temporary "thinking" message
+  // 1. "thinking" message
   const { data: tempMsg, error: tempErr } = await supabase
     .from('messages')
     .insert({
@@ -508,7 +508,7 @@ async function handleAIReply(userPrompt) {
   if (tempErr) return;
 
   try {
-    // 2. Direct fetch call to Supabase Edge Function (NO API KEY EXPOSED)
+    // 2. Direct fetch call to Supabase Edge Function
     const functionUrl = "https://fclkjwqdcihjvvwhgvlm.supabase.co/functions/v1/rapid-action";
 
     const response = await fetch(functionUrl, {
