@@ -417,7 +417,7 @@ function renderMessage(data) {
 
   const avatarDiv = document.createElement('div');
   avatarDiv.classList.add('msg-avatar');
-  avatarDiv.textContent = isAI ? '🤖' : data.sender.charAt(0).toUpperCase();
+  avatarDiv.textContent = isAI ? '⛷️' : data.sender.charAt(0).toUpperCase();
 
   const bodyDiv = document.createElement('div');
   bodyDiv.classList.add('msg-body');
@@ -500,7 +500,7 @@ async function handleAIReply(userPrompt) {
     .insert({
       room: currentRoom,
       sender: 'YapBot',
-      text: '🤖 YapBot is thinking...'
+      text: '⛷️ YapBot is thinking...'
     })
     .select()
     .single();
@@ -508,8 +508,8 @@ async function handleAIReply(userPrompt) {
   if (tempErr) return;
 
   try {
-    // 2. Direct fetch call to your Supabase Edge Function (NO API KEY EXPOSED)
-    const functionUrl = "https://fclkjwqdcihjvvwhgvlm.supabase.co/functions/v1/ai-response";
+    // 2. Direct fetch call to Supabase Edge Function (NO API KEY EXPOSED)
+    const functionUrl = "https://fclkjwqdcihjvvwhgvlm.supabase.co/functions/v1/rapid-action";
 
     const response = await fetch(functionUrl, {
       method: "POST",
@@ -535,15 +535,3 @@ async function handleAIReply(userPrompt) {
   }
 }
 
-// Jitsi Call Launcher
-callBtn.addEventListener('click', () => {
-  if (!currentRoom) return;
-  const callUrl = `https://meet.jit.si/YAPPATRON_${currentRoom}`;
-  window.open(callUrl, '_blank');
-});
-
-function escapeHTML(str) {
-  return str.replace(/[&<>'"]/g, 
-    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-  );
-}
