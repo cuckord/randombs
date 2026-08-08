@@ -508,7 +508,7 @@ async function handleAIReply(userPrompt) {
   if (tempErr) return;
 
   try {
-    // 2. Direct fetch call to your Supabase Edge Function (NO API KEY EXPOSED)
+    // 2. Direct fetch call to Supabase Edge Function (NO API KEY EXPOSED😝)
     const functionUrl = "https://fclkjwqdcihjvvwhgvlm.supabase.co/functions/v1/ai-response";
 
     const response = await fetch(functionUrl, {
@@ -535,15 +535,3 @@ async function handleAIReply(userPrompt) {
   }
 }
 
-// Jitsi Call Launcher
-callBtn.addEventListener('click', () => {
-  if (!currentRoom) return;
-  const callUrl = `https://meet.jit.si/YAPPATRON_${currentRoom}`;
-  window.open(callUrl, '_blank');
-});
-
-function escapeHTML(str) {
-  return str.replace(/[&<>'"]/g, 
-    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-  );
-}
