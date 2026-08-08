@@ -92,9 +92,7 @@ html, body {
   right: -150px;
 }
 
-/* ==========================================
-   BUTTONS & INPUT CONTROL DEFAULTS
-   ========================================== */
+/* BUTTONS & INPUT CONTROL DEFAULTS */
 
 .btn-primary {
   background: var(--accent-primary);
@@ -182,9 +180,7 @@ html, body {
   background: var(--bg-surface-elevated);
 }
 
-/* ==========================================
-   NEW SPLIT-SCREEN AUTHENTICATION / LOGIN
-   ========================================== */
+/*NEW SPLIT-SCREEN AUTHENTICATION / LOGIN */
 
 .auth-screen {
   position: absolute;
@@ -463,9 +459,8 @@ input:focus, textarea:focus {
   border-color: var(--accent-primary);
 }
 
-/* ==========================================
-   WORKSPACE CHAT LAYOUT
-   ========================================== */
+
+  */ WORKSPACE CHAT LAYOUT*/
 
 .workspace-layout {
   width: 100vw;
@@ -638,9 +633,7 @@ input:focus, textarea:focus {
   border-radius: 50%;
 }
 
-/* ==========================================
-   MAIN CHAT VIEWPORT & MESSAGES
-   ========================================== */
+/*  MAIN CHAT VIEWPORT & MESSAGES   */
 
 .chat-viewport {
   flex: 1;
