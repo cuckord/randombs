@@ -10,6 +10,17 @@ let currentRoom = "";
 let realtimeChannel = null;
 let activeReplyData = null;
 
+// HTML Escaping Utility (XSS Prevention & Fix for missing function)
+function escapeHTML(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // DOM Elements
 const authForm = document.getElementById('auth-form');
 const joinScreen = document.getElementById('join-screen');
@@ -377,7 +388,6 @@ async function listenForMessages() {
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'messages', filter: `room=eq.${currentRoom}` },
       (payload) => {
-        // Live update message text when AI finishes thinking
         const existingMsgText = document.querySelector(`[data-msg-id="${payload.new.id}"] .msg-text`);
         if (existingMsgText) {
           existingMsgText.textContent = payload.new.text;
@@ -494,7 +504,6 @@ aiSubmitBtn.addEventListener('click', async () => {
 async function handleAIReply(userPrompt) {
   if (!currentRoom || !userPrompt) return;
 
-  // 1. Post temporary "thinking" message
   const { data: tempMsg, error: tempErr } = await supabase
     .from('messages')
     .insert({
@@ -508,7 +517,6 @@ async function handleAIReply(userPrompt) {
   if (tempErr) return;
 
   try {
-    // 2. Direct fetch call to Supabase Edge Function (NO API KEY EXPOSED😝)
     const functionUrl = "https://fclkjwqdcihjvvwhgvlm.supabase.co/functions/v1/ai-response";
 
     const response = await fetch(functionUrl, {
@@ -520,7 +528,6 @@ async function handleAIReply(userPrompt) {
     const data = await response.json();
     const aiText = data?.response || "Response format issue.";
 
-    // 3. Update thinking message with AI response
     await supabase
       .from('messages')
       .update({ text: aiText })
@@ -534,4 +541,3 @@ async function handleAIReply(userPrompt) {
       .eq('id', tempMsg.id);
   }
 }
-
